@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styling */
+html, body {
+  @apply h-full;
+}
+
+body {
+  @apply bg-white text-gray-800 font-sans;
+  margin: 0;
+  padding: 0;
+}
+
+/* Smooth color transitions */
+@media (prefers-color-scheme: dark) {
+  body {
+    @apply bg-gray-900 text-gray-100;
+  }
+}
+
