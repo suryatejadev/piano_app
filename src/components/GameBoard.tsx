@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useGameState } from '../hooks/useGameState';
 import { useMidi } from '../hooks/useMidi';
+import { playBeep } from '../utils/audioBeep';
 import { midiToNote } from '../utils/midiNoteMap';
 import { StaffDisplay } from './StaffDisplay';
 import { StatsDisplay } from './StatsDisplay';
@@ -12,12 +13,24 @@ import type { MidiNoteEvent, Note } from '../types';
 /**
  * Main game board component that orchestrates all game components
  */
-export const GameBoard: React.FC = () => {
+export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void }> = ({
+  timerMinutes,
+  setTimerMinutes,
+}) => {
   const gameState = useGameState();
   const midi = useMidi();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const timerRefId = useRef<NodeJS.Timeout | null>(null);
   const unsubscribeMidiRef = useRef<(() => void) | null>(null);
+  const hasTriggeredAutoResetRef = useRef(false);
+
+  const handleOnScreenInput = (note: Note) => {
+    if (!gameState.state.gameActive) {
+      gameState.startGame();
+      return;
+    }
+    gameState.handleNotePlay(note);
+  };
 
   // Update stats timer
   useEffect(() => {
@@ -36,7 +49,10 @@ export const GameBoard: React.FC = () => {
   useEffect(() => {
     // Subscribe to MIDI note events
     const callback = (event: MidiNoteEvent) => {
-      if (!gameState.state.gameActive) return;
+      if (!gameState.state.gameActive) {
+        gameState.startGame();
+        return;
+      }
 
       const playedNote = midiToNote(event.noteNumber, gameState.state.difficulty.clef);
       if (playedNote) {
@@ -63,14 +79,62 @@ export const GameBoard: React.FC = () => {
     gameState.setMidiConnected(midi.isConnected);
   }, [midi.isConnected, gameState.setMidiConnected]);
 
-  const handleStartGame = () => {
-    gameState.startGame();
-  };
+  // Stop the game automatically when timer reaches the selected duration.
+  useEffect(() => {
+    if (!gameState.state.gameActive) return;
+
+    const timerLimitSeconds = timerMinutes * 60;
+    if (gameState.state.stats.elapsedSeconds >= timerLimitSeconds) {
+      gameState.stopGame();
+    }
+  }, [
+    gameState.state.gameActive,
+    gameState.state.stats.elapsedSeconds,
+    timerMinutes,
+    gameState.stopGame,
+  ]);
+
+  // Auto-reset and beep when game stops due to timer
+  useEffect(() => {
+    const isGameStopped = !gameState.state.gameActive;
+    const isTimeUp = gameState.state.stats.elapsedSeconds >= timerMinutes * 60 - 1;
+
+    if (!isGameStopped || !isTimeUp || hasTriggeredAutoResetRef.current) {
+      return;
+    }
+
+    hasTriggeredAutoResetRef.current = true;
+
+    const handleTimeUp = async () => {
+      await playBeep(300, 600, 0.4);
+      // Auto-reset after beep finishes
+      setTimeout(() => {
+        gameState.resetStats();
+        hasTriggeredAutoResetRef.current = false;
+      }, 350);
+    };
+
+    handleTimeUp();
+  }, [gameState.state.gameActive, gameState.state.stats.elapsedSeconds, timerMinutes, gameState.resetStats]);
 
   // Build on-screen note buttons from the current key, respecting note range
   const scaleNotes: Note[] = getKeyNotes(gameState.state.difficulty.keyRoot, gameState.state.difficulty.keyMode, gameState.state.difficulty.includeAccidentals)
     .map(midi => midiToNote(midi, gameState.state.difficulty.clef))
-    .filter((n): n is Note => n !== null && n.midiNumber >= gameState.state.difficulty.minNoteNumber && n.midiNumber <= gameState.state.difficulty.maxNoteNumber);
+    .filter((n): n is Note => {
+      if (!n) return false;
+
+      const d = gameState.state.difficulty;
+      if (d.clef === 'TREBLE' || d.clef === 'ALTO') {
+        return n.midiNumber >= d.trebleMinNoteNumber && n.midiNumber <= d.trebleMaxNoteNumber;
+      }
+      if (d.clef === 'BASS') {
+        return n.midiNumber >= d.bassMinNoteNumber && n.midiNumber <= d.bassMaxNoteNumber;
+      }
+      return (
+        (n.midiNumber >= d.trebleMinNoteNumber && n.midiNumber <= d.trebleMaxNoteNumber) ||
+        (n.midiNumber >= d.bassMinNoteNumber && n.midiNumber <= d.bassMaxNoteNumber)
+      );
+    });
 
   const handleStopGame = () => {
     gameState.stopGame();
@@ -112,12 +176,6 @@ export const GameBoard: React.FC = () => {
       </aside>
 
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">🎹 Piano Note Reader</h1>
-          <p className="text-gray-600">Learn to read music notes on the treble clef</p>
-        </div>
-
         {/* MIDI Connection Status */}
         <div className="mb-6">
           <MidiConnectionStatus
@@ -136,13 +194,32 @@ export const GameBoard: React.FC = () => {
         <div className="mb-8">
           <div className="relative min-w-0">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-4">
-              <div>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <button
                   onClick={() => setSettingsOpen(true)}
                   className="px-4 py-2 rounded-md bg-slate-900 hover:bg-black text-white font-semibold transition"
                 >
                   Configure
                 </button>
+
+                <div className="flex items-center gap-2">
+                  <label htmlFor="timer-select" className="text-sm font-medium text-gray-700">
+                    Timer
+                  </label>
+                  <select
+                    id="timer-select"
+                    value={timerMinutes}
+                    onChange={e => setTimerMinutes(parseInt(e.target.value, 10))}
+                    disabled={gameState.state.gameActive}
+                    className="rounded border border-gray-300 bg-white px-2 py-2 text-sm text-gray-800"
+                  >
+                    {[1, 3, 5, 10, 15].map(min => (
+                      <option key={min} value={min}>
+                        {min} min
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="w-full sm:w-auto sm:max-w-[440px]">
@@ -160,27 +237,20 @@ export const GameBoard: React.FC = () => {
               clef={gameState.state.difficulty.clef}
               showAnswer={gameState.state.difficulty.showAnswer}
               feedbackMessage={gameState.state.feedbackMessage}
+              lastPlayedNote={gameState.state.lastPlayedNote}
+              showWrongNote={gameState.state.feedbackMessage.includes('Try again')}
             />
             </div>
 
             {/* Game Control Buttons */}
             <div className="flex flex-col sm:flex-row gap-3 mt-6">
-              {!gameState.state.gameActive ? (
-                <>
-                  <button
-                    onClick={handleStartGame}
-                    className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition"
-                  >
-                    Start Game
-                  </button>
-                  <button
-                    onClick={gameState.resetStats}
-                    className="flex-1 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition"
-                  >
-                    Reset Stats
-                  </button>
-                </>
-              ) : (
+              <button
+                onClick={gameState.resetStats}
+                className="flex-1 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition"
+              >
+                Reset Stats
+              </button>
+              {gameState.state.gameActive && (
                 <button
                   onClick={handleStopGame}
                   className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition"
@@ -191,7 +261,7 @@ export const GameBoard: React.FC = () => {
             </div>
 
             {/* On-screen note buttons for debugging without MIDI */}
-            {gameState.state.gameActive && gameState.state.difficulty.showOnScreenKeyboard && (
+            {gameState.state.difficulty.showOnScreenKeyboard && (
               <div className="mt-6">
                 <p className="text-xs text-gray-400 uppercase tracking-wide mb-2 text-center">
                   On-screen keyboard (debug)
@@ -200,7 +270,7 @@ export const GameBoard: React.FC = () => {
                   {scaleNotes.map(note => (
                     <button
                       key={note.midiNumber}
-                      onClick={() => gameState.handleNotePlay(note)}
+                      onClick={() => handleOnScreenInput(note)}
                       className="px-3 py-2 bg-white border-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50 rounded font-semibold text-gray-800 text-sm transition"
                     >
                       {note.name}
@@ -219,7 +289,7 @@ export const GameBoard: React.FC = () => {
           <p>
             {gameState.state.gameActive
               ? '🎮 Game in progress - Play a note below or use your MIDI keyboard!'
-              : '⏸️ Game paused - Press "Start Game" to begin'}
+              : '⏸️ Game paused - Press any note on your keyboard (or on-screen keyboard) to begin'}
           </p>
         </div>
       </div>

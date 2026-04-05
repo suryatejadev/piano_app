@@ -1,0 +1,226 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useMidi } from '../hooks/useMidi';
+import { playBeep } from '../utils/audioBeep';
+import type { MidiNoteEvent } from '../types';
+
+interface ScaleCard {
+  rootNote: string;
+  mode: 'Major' | 'Minor';
+  hand: 'left' | 'right' | 'both';
+  octaves: 1 | 2;
+}
+
+const ROOTS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+const MODES = ['Major', 'Minor'] as const;
+const HANDS = ['left', 'right', 'both'] as const;
+const OCTAVES = [1, 2] as const;
+
+const createScaleCard = (): ScaleCard => {
+  return {
+    rootNote: ROOTS[Math.floor(Math.random() * ROOTS.length)],
+    mode: MODES[Math.floor(Math.random() * MODES.length)],
+    hand: HANDS[Math.floor(Math.random() * HANDS.length)],
+    octaves: OCTAVES[Math.floor(Math.random() * OCTAVES.length)],
+  };
+};
+
+export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void }> = ({
+  timerMinutes,
+  setTimerMinutes,
+}) => {
+  const [card, setCard] = useState<ScaleCard>(() => createScaleCard());
+  const [scalesCompleted, setScalesCompleted] = useState(0);
+  const [hasStarted, setHasStarted] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [timeUp, setTimeUp] = useState(false);
+  const [feedback, setFeedback] = useState('');
+
+  const midi = useMidi();
+  const roundDurationSeconds = timerMinutes * 60;
+  const unsubscribeMidiRef = useRef<(() => void) | null>(null);
+
+  const totalCount = useMemo(() => scalesCompleted, [scalesCompleted]);
+
+  // Listen for C1 (MIDI 36) to advance to next scale
+  useEffect(() => {
+    const callback = (event: MidiNoteEvent) => {
+      if (event.noteNumber === 36) {
+        if (!hasStarted) {
+          setHasStarted(true);
+        }
+
+        if (!timeUp) {
+          setScalesCompleted(prev => prev + 1);
+          setCard(createScaleCard());
+          setFeedback('');
+        }
+      }
+    };
+
+    unsubscribeMidiRef.current = midi.onNote(callback);
+
+    return () => {
+      if (unsubscribeMidiRef.current) {
+        unsubscribeMidiRef.current();
+      }
+    };
+  }, [midi, hasStarted, timeUp]);
+
+  // Auto-reset and beep when timer expires
+  useEffect(() => {
+    if (!timeUp) return;
+
+    const handleTimeUp = async () => {
+      await playBeep(300, 600, 0.4);
+      // Auto-reset after beep finishes
+      setTimeout(() => {
+        setScalesCompleted(0);
+        setElapsedSeconds(0);
+        setHasStarted(false);
+        setTimeUp(false);
+        setFeedback('');
+        setCard(createScaleCard());
+      }, 350);
+    };
+
+    handleTimeUp();
+  }, [timeUp]);
+
+  // Timer logic
+  useEffect(() => {
+    if (timeUp || !hasStarted) return;
+
+    const intervalId = setInterval(() => {
+      setElapsedSeconds(prev => {
+        if (prev >= roundDurationSeconds - 1) {
+          setTimeUp(true);
+          setFeedback("Time's up!");
+          return roundDurationSeconds;
+        }
+        return prev + 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [timeUp, hasStarted, roundDurationSeconds]);
+
+  const handleSkip = () => {
+    if (timeUp) return;
+
+    if (!hasStarted) {
+      setHasStarted(true);
+    }
+
+    setScalesCompleted(prev => prev + 1);
+    setCard(createScaleCard());
+    setFeedback('');
+  };
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label htmlFor="scales-timer-select" className="text-sm font-medium text-gray-700">
+                  Timer
+                </label>
+                <select
+                  id="scales-timer-select"
+                  value={timerMinutes}
+                  onChange={e => setTimerMinutes(parseInt(e.target.value, 10))}
+                  disabled={hasStarted && !timeUp}
+                  className="rounded border border-gray-300 bg-white px-2 py-2 text-sm text-gray-800"
+                >
+                  {[1, 3, 5, 10, 15].map(min => (
+                    <option key={min} value={min}>
+                      {min} min
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="w-full sm:w-auto sm:max-w-[440px]">
+              <div className="bg-white/95 backdrop-blur-sm rounded-lg border border-gray-300 p-3 shadow-sm">
+                <h2 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wide">Your Stats</h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-3 bg-slate-100 rounded-lg">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">{totalCount}</div>
+                    <div className="text-xs text-gray-600 mt-1">Scales Played</div>
+                  </div>
+
+                  <div className="text-center">
+                    <div className={`text-2xl font-bold ${timeUp ? 'text-red-600' : 'text-orange-600'}`}>
+                      {formatTime(elapsedSeconds)}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Time</div>
+                  </div>
+
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-gray-600">
+                      {totalCount > 0
+                        ? ((totalCount * 60) / Math.max(elapsedSeconds, 1)).toFixed(1)
+                        : '0.0'}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Per Minute</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-300 p-8 shadow-sm">
+          <div className="text-center mb-12">
+            <div className="text-5xl font-bold text-slate-900 mb-4">
+              Play {card.rootNote} {card.mode}
+            </div>
+            <div className="text-2xl text-slate-600 mb-6">
+              with <span className="font-bold text-blue-600">{card.hand}</span> hand on{' '}
+              <span className="font-bold text-green-600">{card.octaves}</span>{' '}
+              {card.octaves === 1 ? 'octave' : 'octaves'}
+            </div>
+            <div className="text-sm text-gray-500">Press C1 on MIDI or click Next to advance</div>
+          </div>
+
+          <div className="text-center mb-8">
+            <div className={`text-lg font-semibold ${feedback.includes("Time's up") ? 'text-red-600' : 'text-gray-700'}`}>
+              {feedback}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={handleSkip}
+              disabled={timeUp}
+              className="flex-1 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition"
+            >
+              Next Scale (Skip)
+            </button>
+            <button
+              onClick={() => {
+                setScalesCompleted(0);
+                setElapsedSeconds(0);
+                setHasStarted(false);
+                setTimeUp(false);
+                setFeedback('');
+                setCard(createScaleCard());
+              }}
+              className="flex-1 px-6 py-3 bg-slate-900 hover:bg-black text-white font-bold rounded-lg transition"
+            >
+              Reset Session
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

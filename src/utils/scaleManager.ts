@@ -22,8 +22,8 @@ export const generateKeyNotes = (rootNote: string, mode: KeyMode): number[] => {
   const intervals = mode === KeyMode.MAJOR ? MAJOR_INTERVALS : MINOR_INTERVALS;
   const notes: number[] = [];
 
-  // Generate notes for 3 octaves (C4 to C6 range)
-  for (let octave = 4; octave <= 6; octave++) {
+  // Generate notes across octaves 1-6; final visible range is controlled by Min/Max settings.
+  for (let octave = 1; octave <= 6; octave++) {
     for (const interval of intervals) {
       const noteIndex = (rootIndex + interval) % 12;
       const noteName = CHROMATIC_NOTES[noteIndex];

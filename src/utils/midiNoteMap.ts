@@ -117,6 +117,7 @@ export const midiToNote = (midiNumber: number, clef: Clef = Clef.TREBLE): Note |
   const staffPositionMap = {
     [Clef.TREBLE]: midiMap.staffPosition.treble,
     [Clef.BASS]: midiMap.staffPosition.bass,
+    [Clef.GRAND]: midiMap.staffPosition.treble,
     [Clef.ALTO]: midiMap.staffPosition.alto,
   };
 
@@ -154,6 +155,7 @@ export const getStaffPosition = (midiNumber: number, clef: Clef): number | null 
   const positionMap = {
     [Clef.TREBLE]: midiMap.staffPosition.treble,
     [Clef.BASS]: midiMap.staffPosition.bass,
+    [Clef.GRAND]: midiMap.staffPosition.treble,
     [Clef.ALTO]: midiMap.staffPosition.alto,
   };
 

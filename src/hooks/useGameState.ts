@@ -7,9 +7,11 @@ const DEFAULT_DIFFICULTY: Difficulty = {
   tempo: 'medium',
   showAnswer: false,
   includeAccidentals: false,
-  showOnScreenKeyboard: true,
-  minNoteNumber: 69, // A4
-  maxNoteNumber: 96, // C7
+  showOnScreenKeyboard: false,
+  trebleMinNoteNumber: 57, // A3
+  trebleMaxNoteNumber: 84, // C6
+  bassMinNoteNumber: 45, // A2
+  bassMaxNoteNumber: 60, // C4
   keyRoot: 'C',
   keyMode: KeyMode.MAJOR,
   clef: Clef.TREBLE,
@@ -38,6 +40,22 @@ const DEFAULT_STATE: GameState = {
   feedbackMessage: '',
 };
 
+const isNoteInDifficultyRange = (note: Note, difficulty: Difficulty): boolean => {
+  if (difficulty.clef === Clef.TREBLE || difficulty.clef === Clef.ALTO) {
+    return note.midiNumber >= difficulty.trebleMinNoteNumber && note.midiNumber <= difficulty.trebleMaxNoteNumber;
+  }
+
+  if (difficulty.clef === Clef.BASS) {
+    return note.midiNumber >= difficulty.bassMinNoteNumber && note.midiNumber <= difficulty.bassMaxNoteNumber;
+  }
+
+  // Grand staff accepts notes in either treble or bass configured ranges.
+  return (
+    (note.midiNumber >= difficulty.trebleMinNoteNumber && note.midiNumber <= difficulty.trebleMaxNoteNumber) ||
+    (note.midiNumber >= difficulty.bassMinNoteNumber && note.midiNumber <= difficulty.bassMaxNoteNumber)
+  );
+};
+
 const buildNoteQueue = (difficulty: Difficulty, count = 10): Note[] => {
   const notes: Note[] = [];
   let attempts = 0;
@@ -45,7 +63,7 @@ const buildNoteQueue = (difficulty: Difficulty, count = 10): Note[] => {
   
   while (notes.length < count && attempts < maxAttempts) {
     const note = getRandomKeyNote(difficulty.keyRoot, difficulty.keyMode, difficulty.clef, difficulty.includeAccidentals);
-    if (note && note.midiNumber >= difficulty.minNoteNumber && note.midiNumber <= difficulty.maxNoteNumber) {
+    if (note && isNoteInDifficultyRange(note, difficulty)) {
       notes.push(note);
     }
     attempts++;
@@ -132,7 +150,7 @@ export const useGameState = (): UseGameStateReturn => {
         let generated = getRandomKeyNote(prevState.difficulty.keyRoot, prevState.difficulty.keyMode, prevState.difficulty.clef, prevState.difficulty.includeAccidentals);
         // Keep generating until we get a note within the range
         let attempts = 0;
-        while (generated && (generated.midiNumber < prevState.difficulty.minNoteNumber || generated.midiNumber > prevState.difficulty.maxNoteNumber) && attempts < 100) {
+        while (generated && !isNoteInDifficultyRange(generated, prevState.difficulty) && attempts < 100) {
           generated = getRandomKeyNote(prevState.difficulty.keyRoot, prevState.difficulty.keyMode, prevState.difficulty.clef, prevState.difficulty.includeAccidentals);
           attempts++;
         }

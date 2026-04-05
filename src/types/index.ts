@@ -12,6 +12,7 @@ export enum KeyMode {
 export enum Clef {
   TREBLE = 'TREBLE',
   BASS = 'BASS',
+  GRAND = 'GRAND',
   ALTO = 'ALTO',
 }
 
@@ -32,8 +33,10 @@ export interface Difficulty {
   showAnswer: boolean; // show the note name/letter
   includeAccidentals: boolean; // include sharps and flats
   showOnScreenKeyboard: boolean; // show on-screen keyboard buttons
-  minNoteNumber: number; // minimum MIDI note number
-  maxNoteNumber: number; // maximum MIDI note number
+  trebleMinNoteNumber: number; // minimum MIDI note number for treble range
+  trebleMaxNoteNumber: number; // maximum MIDI note number for treble range
+  bassMinNoteNumber: number; // minimum MIDI note number for bass range
+  bassMaxNoteNumber: number; // maximum MIDI note number for bass range
   keyRoot: string; // root note name (C, C#, D, D#, E, F, F#, G, G#, A, A#, B)
   keyMode: KeyMode; // MAJOR or MINOR
   clef: Clef;

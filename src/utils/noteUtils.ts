@@ -56,7 +56,11 @@ export const midiEventToNote = (event: MidiNoteEvent, clef: any): Note | null =>
   const baseNoteName = noteName.replace('#', '').replace('b', '');
 
   const clefKey = clef.toString().toLowerCase();
-  const staffPositionKey = clefKey === 'clef.treble' ? 'treble' : clefKey === 'clef.bass' ? 'bass' : 'alto';
+  const staffPositionKey = clefKey === 'clef.treble' || clefKey === 'clef.grand'
+    ? 'treble'
+    : clefKey === 'clef.bass'
+      ? 'bass'
+      : 'alto';
 
   return {
     name: baseNoteName,
