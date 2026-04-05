@@ -1,18 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MidiConnectionStatus } from './MidiConnectionStatus';
 import { TimerDoneOverlay } from './TimerDoneOverlay';
+import { SharedTimerControl } from './SharedTimerControl';
 import type { MidiNoteEvent } from '../types';
 import type { UseMidiReturn } from '../hooks/useMidi';
 import { KeyMode } from '../types';
 
 interface FlashCard {
   prompt: string;
-  targetPitchClass: number;
+  targetNote: string;
 }
 
 interface FlashCardSettings {
   naturals: boolean;
-  accidentals: boolean;
   scaleMath: boolean;
   intervals: boolean;
   showOnScreenKeyboard: boolean;
@@ -20,7 +20,6 @@ interface FlashCardSettings {
 
 const DEFAULT_SETTINGS: FlashCardSettings = {
   naturals: true,
-  accidentals: false,
   scaleMath: true,
   intervals: true,
   showOnScreenKeyboard: false,
@@ -28,19 +27,21 @@ const DEFAULT_SETTINGS: FlashCardSettings = {
 
 const CHROMATIC_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const NATURAL_NOTES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-const ACCIDENTAL_NOTES = ['C#', 'D#', 'F#', 'G#', 'A#'];
-const MAJOR_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
-const MINOR_INTERVALS = [0, 2, 3, 5, 7, 8, 10];
 
 const pitchClassLabel = (pitchClass: number): string => {
   return CHROMATIC_NOTES[((pitchClass % 12) + 12) % 12];
 };
 
+const naturalStep = (root: string, steps: number): string => {
+  const rootIndex = NATURAL_NOTES.indexOf(root);
+  const nextIndex = ((rootIndex + steps) % NATURAL_NOTES.length + NATURAL_NOTES.length) % NATURAL_NOTES.length;
+  return NATURAL_NOTES[nextIndex];
+};
+
 const getAllowedRoots = (settings: FlashCardSettings): string[] => {
   const roots: string[] = [];
   if (settings.naturals) roots.push(...NATURAL_NOTES);
-  if (settings.accidentals) roots.push(...ACCIDENTAL_NOTES);
-  return roots.length > 0 ? roots : [...CHROMATIC_NOTES];
+  return roots.length > 0 ? roots : [...NATURAL_NOTES];
 };
 
 const generateFlashCard = (settings: FlashCardSettings): FlashCard => {
@@ -58,26 +59,23 @@ const generateFlashCard = (settings: FlashCardSettings): FlashCard => {
   if (questionType === 'scale') {
     const root = roots[Math.floor(Math.random() * roots.length)];
     const mode = Math.random() < 0.5 ? KeyMode.MAJOR : KeyMode.MINOR;
-    const intervals = mode === KeyMode.MAJOR ? MAJOR_INTERVALS : MINOR_INTERVALS;
     const degree = Math.floor(Math.random() * 7) + 1;
-    const rootPitchClass = CHROMATIC_NOTES.indexOf(root);
-    const targetPitchClass = (rootPitchClass + intervals[degree - 1]) % 12;
+    const targetNote = naturalStep(root, degree - 1);
 
     return {
       prompt: `${degree} of ${root} ${mode === KeyMode.MAJOR ? 'major' : 'minor'} is`,
-      targetPitchClass,
+      targetNote,
     };
   }
 
   const base = roots[Math.floor(Math.random() * roots.length)];
   const amount = Math.floor(Math.random() * 4) + 1;
   const sign = Math.random() < 0.5 ? 1 : -1;
-  const basePitchClass = CHROMATIC_NOTES.indexOf(base);
-  const targetPitchClass = (basePitchClass + sign * amount + 120) % 12;
+  const targetNote = naturalStep(base, sign * amount);
 
   return {
     prompt: `${base} ${sign > 0 ? '+' : '-'} ${amount} is`,
-    targetPitchClass,
+    targetNote,
   };
 };
 
@@ -127,7 +125,7 @@ export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: 
 
     const playedLabel = pitchClassLabel(playedPitchClass);
 
-    if (playedPitchClass === card.targetPitchClass) {
+    if (playedLabel === card.targetNote) {
       setCorrectCount(prev => prev + 1);
       setFeedback(`Correct! ${playedLabel} is right.`);
       setTimeout(() => {
@@ -138,7 +136,7 @@ export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: 
       setWrongCount(prev => prev + 1);
       setFeedback(`Incorrect: you played ${playedLabel}. Try again.`);
     }
-  }, [timeUp, hasStarted, card.targetPitchClass, settings]);
+  }, [timeUp, showTimerDone, hasStarted, card.targetNote, settings, resetSession]);
 
   const nextCard = useCallback(() => {
     if (timeUp) return;
@@ -241,16 +239,6 @@ export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: 
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
-                checked={settings.accidentals}
-                onChange={e => setSettings(prev => ({ ...prev, accidentals: e.target.checked }))}
-                className="w-5 h-5 rounded"
-              />
-              <span className="text-sm font-medium text-gray-700">Accidentals</span>
-            </label>
-
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
                 checked={settings.scaleMath}
                 onChange={e => setSettings(prev => ({ ...prev, scaleMath: e.target.checked }))}
                 className="w-5 h-5 rounded"
@@ -299,24 +287,12 @@ export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: 
                 Configure
               </button>
 
-              <div className="flex items-center gap-2">
-                <label htmlFor="flash-timer-select" className="text-sm font-medium text-gray-700">
-                  Timer
-                </label>
-                <select
-                  id="flash-timer-select"
-                  value={timerMinutes}
-                  onChange={e => setTimerMinutes(parseInt(e.target.value, 10))}
-                  disabled={hasStarted && !timeUp}
-                  className="rounded border border-gray-300 bg-white px-2 py-2 text-sm text-gray-800"
-                >
-                  {[1, 3, 5, 10, 15].map(min => (
-                    <option key={min} value={min}>
-                      {min} min
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SharedTimerControl
+                id="flash-timer-select"
+                timerMinutes={timerMinutes}
+                setTimerMinutes={setTimerMinutes}
+                disabled={hasStarted && !timeUp}
+              />
             </div>
 
             <div className="w-full sm:w-auto sm:max-w-[440px]">

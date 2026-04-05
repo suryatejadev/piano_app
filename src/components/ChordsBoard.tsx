@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MidiConnectionStatus } from './MidiConnectionStatus';
 import { TimerDoneOverlay } from './TimerDoneOverlay';
+import { SharedTimerControl } from './SharedTimerControl';
 import { getStaffPosition } from '../utils/midiNoteMap';
 import type { MidiNoteEvent } from '../types';
 import type { UseMidiReturn } from '../hooks/useMidi';
@@ -463,24 +464,12 @@ export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
                 Configure
               </button>
 
-              <div className="flex items-center gap-2">
-                <label htmlFor="chords-timer-select" className="text-sm font-medium text-gray-700">
-                  Timer
-                </label>
-                <select
-                  id="chords-timer-select"
-                  value={timerMinutes}
-                  onChange={e => setTimerMinutes(parseInt(e.target.value, 10))}
-                  disabled={hasStarted && !timeUp}
-                  className="rounded border border-gray-300 bg-white px-2 py-2 text-sm text-gray-800"
-                >
-                  {[1, 3, 5, 10, 15].map(min => (
-                    <option key={min} value={min}>
-                      {min} min
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SharedTimerControl
+                id="chords-timer-select"
+                timerMinutes={timerMinutes}
+                setTimerMinutes={setTimerMinutes}
+                disabled={hasStarted && !timeUp}
+              />
             </div>
 
             <div className="w-full sm:w-auto sm:max-w-[440px]">

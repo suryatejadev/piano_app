@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TimerDoneOverlay } from './TimerDoneOverlay';
+import { SharedTimerControl } from './SharedTimerControl';
 import type { MidiNoteEvent } from '../types';
 import type { UseMidiReturn } from '../hooks/useMidi';
 
@@ -45,23 +46,25 @@ export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
   // Listen for C1 (MIDI 36) to advance to next scale
   useEffect(() => {
     const callback = (event: MidiNoteEvent) => {
+      if (timeUp) {
+        if (showTimerDone) return; // block input during the 3s overlay window
+        // overlay dismissed: reset and start fresh
+        setScalesCompleted(0);
+        setElapsedSeconds(0);
+        setTimeUp(false);
+        setFeedback('');
+        setCard(createScaleCard());
+        setHasStarted(true);
+        return;
+      }
+
+      // Timer starts when user presses any MIDI key for the first time.
+      if (!hasStarted) {
+        setHasStarted(true);
+      }
+
+      // C1 advances to next scale card.
       if (event.noteNumber === 36) {
-        if (timeUp) {
-          if (showTimerDone) return; // block input during the 3s overlay window
-          // overlay dismissed: reset and start fresh
-          setScalesCompleted(0);
-          setElapsedSeconds(0);
-          setTimeUp(false);
-          setFeedback('');
-          setCard(createScaleCard());
-          setHasStarted(true);
-          return;
-        }
-
-        if (!hasStarted) {
-          setHasStarted(true);
-        }
-
         setScalesCompleted(prev => prev + 1);
         setCard(createScaleCard());
         setFeedback('');
@@ -75,7 +78,7 @@ export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
         unsubscribeMidiRef.current();
       }
     };
-  }, [midi, hasStarted, timeUp]);
+  }, [midi, hasStarted, timeUp, showTimerDone]);
 
   // Auto-reset and beep when timer expires
   useEffect(() => {
@@ -140,24 +143,12 @@ export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
         <div className="mb-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <label htmlFor="scales-timer-select" className="text-sm font-medium text-gray-700">
-                  Timer
-                </label>
-                <select
-                  id="scales-timer-select"
-                  value={timerMinutes}
-                  onChange={e => setTimerMinutes(parseInt(e.target.value, 10))}
-                  disabled={hasStarted && !timeUp}
-                  className="rounded border border-gray-300 bg-white px-2 py-2 text-sm text-gray-800"
-                >
-                  {[1, 3, 5, 10, 15].map(min => (
-                    <option key={min} value={min}>
-                      {min} min
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SharedTimerControl
+                id="scales-timer-select"
+                timerMinutes={timerMinutes}
+                setTimerMinutes={setTimerMinutes}
+                disabled={hasStarted && !timeUp}
+              />
             </div>
 
             <div className="w-full sm:w-auto sm:max-w-[440px]">
