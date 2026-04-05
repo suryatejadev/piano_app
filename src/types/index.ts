@@ -4,6 +4,11 @@ export enum Scale {
   A_MINOR = 'A_MINOR',
 }
 
+export enum KeyMode {
+  MAJOR = 'MAJOR',
+  MINOR = 'MINOR',
+}
+
 export enum Clef {
   TREBLE = 'TREBLE',
   BASS = 'BASS',
@@ -26,7 +31,11 @@ export interface Difficulty {
   tempo: 'slow' | 'medium' | 'fast'; // affects display timing
   showAnswer: boolean; // show the note name/letter
   includeAccidentals: boolean; // include sharps and flats
-  scale: Scale;
+  showOnScreenKeyboard: boolean; // show on-screen keyboard buttons
+  minNoteNumber: number; // minimum MIDI note number
+  maxNoteNumber: number; // maximum MIDI note number
+  keyRoot: string; // root note name (C, C#, D, D#, E, F, F#, G, G#, A, A#, B)
+  keyMode: KeyMode; // MAJOR or MINOR
   clef: Clef;
   displayDurationMs: number; // milliseconds to display each note
 }

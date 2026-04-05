@@ -1,60 +1,98 @@
-import { Scale, Clef } from '../types';
+import { KeyMode, Clef } from '../types';
 import type { Note } from '../types';
 import { getMidiNumber, midiToNote } from './midiNoteMap';
 
-// Define notes in each scale (using MIDI numbers for treble clef)
-export const SCALE_DEFINITIONS: Record<Scale, number[]> = {
-  [Scale.C_MAJOR]: [
-    getMidiNumber('C', 3), // C3
-    getMidiNumber('D', 3),
-    getMidiNumber('E', 3),
-    getMidiNumber('F', 3),
-    getMidiNumber('G', 3),
-    getMidiNumber('A', 3),
-    getMidiNumber('B', 3),
-    getMidiNumber('C', 4),
-    getMidiNumber('D', 4),
-    getMidiNumber('E', 4),
-    getMidiNumber('F', 4),
-    getMidiNumber('G', 4),
-    getMidiNumber('A', 4),
-    getMidiNumber('B', 4),
-    getMidiNumber('C', 5),
-  ],
-  [Scale.A_MINOR]: [
-    getMidiNumber('A', 2),
-    getMidiNumber('B', 2),
-    getMidiNumber('C', 3),
-    getMidiNumber('D', 3),
-    getMidiNumber('E', 3),
-    getMidiNumber('F', 3),
-    getMidiNumber('G', 3),
-    getMidiNumber('A', 3),
-    getMidiNumber('B', 3),
-    getMidiNumber('C', 4),
-    getMidiNumber('D', 4),
-    getMidiNumber('E', 4),
-    getMidiNumber('F', 4),
-    getMidiNumber('G', 4),
-    getMidiNumber('A', 4),
-  ],
+// Chromatic notes in order
+const CHROMATIC_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+// Interval patterns (in semitones) for major and minor scales
+const MAJOR_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
+const MINOR_INTERVALS = [0, 2, 3, 5, 7, 8, 10];
+
+/**
+ * Generate a major or minor scale starting from a root note
+ */
+export const generateKeyNotes = (rootNote: string, mode: KeyMode): number[] => {
+  const rootIndex = CHROMATIC_NOTES.indexOf(rootNote);
+  if (rootIndex === -1) {
+    console.error(`Invalid root note: ${rootNote}`);
+    return [];
+  }
+
+  const intervals = mode === KeyMode.MAJOR ? MAJOR_INTERVALS : MINOR_INTERVALS;
+  const notes: number[] = [];
+
+  // Generate notes for 3 octaves (C4 to C6 range)
+  for (let octave = 4; octave <= 6; octave++) {
+    for (const interval of intervals) {
+      const noteIndex = (rootIndex + interval) % 12;
+      const noteName = CHROMATIC_NOTES[noteIndex];
+      const midiNum = getMidiNumber(noteName, octave);
+      notes.push(midiNum);
+    }
+  }
+
+  return notes;
 };
 
 /**
- * Get all MIDI notes for a given scale
+ * Get all MIDI notes for a given key, optionally including accidentals
  */
-export const getScaleNotes = (scale: Scale): number[] => {
-  return SCALE_DEFINITIONS[scale] || [];
+export const getKeyNotes = (keyRoot: string, keyMode: KeyMode, includeAccidentals: boolean = false): number[] => {
+  const baseNotes = generateKeyNotes(keyRoot, keyMode);
+  
+  if (!includeAccidentals) {
+    return baseNotes;
+  }
+
+  // Add all chromatic notes (sharps/flats) between the natural notes
+  const notesWithAccidentals: number[] = [];
+  for (let i = 0; i < baseNotes.length; i++) {
+    notesWithAccidentals.push(baseNotes[i]);
+    
+    // Check if there's a next note and if there's room for accidentals
+    if (i < baseNotes.length - 1) {
+      const currentNote = baseNotes[i];
+      const nextNote = baseNotes[i + 1];
+      
+      // Add all semitones between current and next note
+      for (let semitone = currentNote + 1; semitone < nextNote; semitone++) {
+        notesWithAccidentals.push(semitone);
+      }
+    }
+  }
+  
+  return notesWithAccidentals;
 };
 
 /**
- * Get a random note from the specified scale
+ * Get all MIDI notes for a given scale, optionally including accidentals (legacy)
  */
-export const getRandomScaleNote = (
-  scale: Scale,
+export const getScaleNotes = (scale: string, includeAccidentals: boolean = false): number[] => {
+  // For legacy support, map old scale names to key root/mode
+  const scaleMap: Record<string, {keyRoot: string, keyMode: KeyMode}> = {
+    'C_MAJOR': { keyRoot: 'C', keyMode: KeyMode.MAJOR },
+    'A_MINOR': { keyRoot: 'A', keyMode: KeyMode.MINOR },
+  };
+  
+  const scaleConfig = scaleMap[scale];
+  if (!scaleConfig) {
+    return [];
+  }
+  
+  return getKeyNotes(scaleConfig.keyRoot, scaleConfig.keyMode, includeAccidentals);
+};
+
+/**
+ * Get a random note from the specified key
+ */
+export const getRandomKeyNote = (
+  keyRoot: string,
+  keyMode: KeyMode,
   clef: Clef = Clef.TREBLE,
+  includeAccidentals: boolean = false,
 ): Note | null => {
-  const midiNumbers = getScaleNotes(scale);
+  const midiNumbers = getKeyNotes(keyRoot, keyMode, includeAccidentals);
   if (midiNumbers.length === 0) return null;
 
   const randomMidiNumber = midiNumbers[Math.floor(Math.random() * midiNumbers.length)];
@@ -62,49 +100,17 @@ export const getRandomScaleNote = (
 };
 
 /**
- * Get multiple random notes from a scale
+ * Get a random note from the specified scale (legacy)
  */
-export const getRandomScaleNotes = (
-  scale: Scale,
-  count: number,
+export const getRandomScaleNote = (
+  scale: string,
   clef: Clef = Clef.TREBLE,
-): Note[] => {
-  const notes: Note[] = [];
-  for (let i = 0; i < count; i++) {
-    const note = getRandomScaleNote(scale, clef);
-    if (note) notes.push(note);
-  }
-  return notes;
+  includeAccidentals: boolean = false,
+): Note | null => {
+  const midiNumbers = getScaleNotes(scale, includeAccidentals);
+  if (midiNumbers.length === 0) return null;
+
+  const randomMidiNumber = midiNumbers[Math.floor(Math.random() * midiNumbers.length)];
+  return midiToNote(randomMidiNumber, clef);
 };
 
-/**
- * Check if a MIDI note is in the specified scale
- */
-export const isNoteInScale = (midiNumber: number, scale: Scale): boolean => {
-  const scaleNotes = getScaleNotes(scale);
-  // Allow any octave transposition of the note
-  const noteClassInScale = scaleNotes.some(note => note % 12 === midiNumber % 12);
-  return noteClassInScale;
-};
-
-/**
- * Get scale display name
- */
-export const getScaleDisplayName = (scale: Scale): string => {
-  const names: Record<Scale, string> = {
-    [Scale.C_MAJOR]: 'C Major',
-    [Scale.A_MINOR]: 'A Minor',
-  };
-  return names[scale] || 'Unknown Scale';
-};
-
-/**
- * Get scale description
- */
-export const getScaleDescription = (scale: Scale): string => {
-  const descriptions: Record<Scale, string> = {
-    [Scale.C_MAJOR]: 'No sharps or flats - natural notes only',
-    [Scale.A_MINOR]: 'Relative minor to C Major',
-  };
-  return descriptions[scale] || '';
-};

@@ -1,7 +1,5 @@
 import type { Note, MidiNoteEvent } from '../types';
-import { Scale } from '../types';
 import { getMidiNote, getNoteDisplayName } from './midiNoteMap';
-import { isNoteInScale } from './scaleManager';
 
 /**
  * Check if two notes are the same (exact match - same MIDI number)
@@ -70,13 +68,6 @@ export const midiEventToNote = (event: MidiNoteEvent, clef: any): Note | null =>
   };
 };
 
-/**
- * Filter valid note range for a scale
- * Removes MIDI notes that are outside the typical range for the scale
- */
-export const isValidScaleNote = (midiNumber: number, scale: Scale): boolean => {
-  return isNoteInScale(midiNumber, scale);
-};
 
 /**
  * Get a human-readable interval name between two notes

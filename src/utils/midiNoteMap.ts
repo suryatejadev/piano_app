@@ -87,15 +87,32 @@ export const getMidiNumber = (noteName: string, octave: number): number => {
 
 /**
  * Convert MIDI note to Note object
+ * Accidentals are deterministically represented as sharp or flat based on MIDI number
  */
 export const midiToNote = (midiNumber: number, clef: Clef = Clef.TREBLE): Note | null => {
   const midiMap = getMidiNote(midiNumber);
   if (!midiMap) return null;
 
   const { noteName, octave } = midiMap;
-  const isSharp = noteName.includes('#');
-  const isFlat = noteName.includes('b');
-  const baseNoteName = noteName.replace('#', '').replace('b', '');
+  let displayNoteName = noteName;
+  
+  // Convert sharps to their enharmonic flat equivalents based on MIDI number parity
+  const sharpToFlatMap: Record<string, string> = {
+    'C#': 'Db',
+    'D#': 'Eb',
+    'F#': 'Gb',
+    'G#': 'Ab',
+    'A#': 'Bb',
+  };
+  
+  // Use flats for odd MIDI numbers, sharps for even (ensures variety and consistency)
+  if (noteName in sharpToFlatMap && midiNumber % 2 === 1) {
+    displayNoteName = sharpToFlatMap[noteName as keyof typeof sharpToFlatMap];
+  }
+  
+  const isSharp = displayNoteName.includes('#');
+  const isFlat = displayNoteName.includes('b');
+  const baseNoteName = displayNoteName.replace('#', '').replace('b', '');
 
   const staffPositionMap = {
     [Clef.TREBLE]: midiMap.staffPosition.treble,

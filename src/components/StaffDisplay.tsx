@@ -61,7 +61,7 @@ export const StaffDisplay: React.FC<StaffDisplayProps> = ({
           <g key="bass-clef" className="text-gray-800">
             <text
               x={clefX}
-              y={staffLines[1] + 8}
+              y={staffLines[1] + 22}
               fontSize="50"
               fontWeight="bold"
               fill="currentColor"
@@ -186,9 +186,13 @@ export const StaffDisplay: React.FC<StaffDisplayProps> = ({
   };
 
   return (
-    <div className="w-full max-w-full flex flex-col items-center gap-6 p-6 bg-white rounded-lg border border-gray-300">
+    <div className="w-full max-w-full flex flex-col items-center gap-4 p-4 bg-white rounded-lg border border-gray-300">
       {/* Staff SVG */}
-      <svg viewBox={`0 0 ${STAFF_WIDTH} ${STAFF_HEIGHT}`} width="100%" height={STAFF_HEIGHT} className="border border-gray-200">
+      <svg
+        viewBox={`0 0 ${STAFF_WIDTH} ${STAFF_HEIGHT}`}
+        width="100%"
+        className="w-full h-[380px] md:h-[430px] border border-gray-200"
+      >
         {/* Staff lines */}
         {staffLines.map((y, i) => (
           <line

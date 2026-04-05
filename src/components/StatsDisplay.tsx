@@ -20,33 +20,33 @@ export const StatsDisplay: React.FC<StatsDisplayProps> = ({ stats }) => {
     : 0;
 
   return (
-    <div className="flex gap-8 justify-center p-6 bg-slate-100 rounded-lg">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-slate-100 rounded-lg">
       <div className="text-center">
-        <div className="text-4xl font-bold text-blue-600">{stats.correctHits}</div>
-        <div className="text-sm text-gray-600 mt-2">Correct Hits</div>
+        <div className="text-2xl font-bold text-blue-600">{stats.correctHits}</div>
+        <div className="text-xs text-gray-600 mt-1">Correct Hits</div>
       </div>
 
       <div className="text-center">
-        <div className="text-4xl font-bold text-green-600">{stats.streak}</div>
-        <div className="text-sm text-gray-600 mt-2">Current Streak</div>
+        <div className="text-2xl font-bold text-green-600">{stats.streak}</div>
+        <div className="text-xs text-gray-600 mt-1">Current Streak</div>
         {stats.maxStreak > 0 && (
           <div className="text-xs text-gray-500 mt-1">Max: {stats.maxStreak}</div>
         )}
       </div>
 
       <div className="text-center">
-        <div className="text-4xl font-bold text-purple-600">{accuracy}%</div>
-        <div className="text-sm text-gray-600 mt-2">Accuracy</div>
+        <div className="text-2xl font-bold text-purple-600">{accuracy}%</div>
+        <div className="text-xs text-gray-600 mt-1">Accuracy</div>
         {stats.totalNotes > 0 && (
           <div className="text-xs text-gray-500 mt-1">{stats.totalNotes} notes</div>
         )}
       </div>
 
       <div className="text-center">
-        <div className="text-4xl font-bold text-orange-600">
+        <div className="text-2xl font-bold text-orange-600">
           {formatTime(stats.elapsedSeconds)}
         </div>
-        <div className="text-sm text-gray-600 mt-2">Time</div>
+        <div className="text-xs text-gray-600 mt-1">Time</div>
       </div>
     </div>
   );

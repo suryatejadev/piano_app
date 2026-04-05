@@ -1,13 +1,17 @@
 import { useState, useCallback } from 'react';
 import type { GameState, Note, Stats, Difficulty } from '../types';
-import { Clef, Scale } from '../types';
-import { getRandomScaleNote } from '../utils/scaleManager';
+import { Clef, KeyMode } from '../types';
+import { getRandomKeyNote } from '../utils/scaleManager';
 
 const DEFAULT_DIFFICULTY: Difficulty = {
   tempo: 'medium',
   showAnswer: false,
   includeAccidentals: false,
-  scale: Scale.C_MAJOR,
+  showOnScreenKeyboard: true,
+  minNoteNumber: 69, // A4
+  maxNoteNumber: 96, // C7
+  keyRoot: 'C',
+  keyMode: KeyMode.MAJOR,
   clef: Clef.TREBLE,
   displayDurationMs: 2000,
 };
@@ -36,11 +40,15 @@ const DEFAULT_STATE: GameState = {
 
 const buildNoteQueue = (difficulty: Difficulty, count = 10): Note[] => {
   const notes: Note[] = [];
-  while (notes.length < count) {
-    const note = getRandomScaleNote(difficulty.scale, difficulty.clef);
-    if (note) {
+  let attempts = 0;
+  const maxAttempts = count * 100; // Prevent infinite loops
+  
+  while (notes.length < count && attempts < maxAttempts) {
+    const note = getRandomKeyNote(difficulty.keyRoot, difficulty.keyMode, difficulty.clef, difficulty.includeAccidentals);
+    if (note && note.midiNumber >= difficulty.minNoteNumber && note.midiNumber <= difficulty.maxNoteNumber) {
       notes.push(note);
     }
+    attempts++;
   }
   return notes;
 };
@@ -121,7 +129,13 @@ export const useGameState = (): UseGameStateReturn => {
         }
 
         const [nextFromQueue, ...remaining] = prevState.noteQueue;
-        const generated = getRandomScaleNote(prevState.difficulty.scale, prevState.difficulty.clef);
+        let generated = getRandomKeyNote(prevState.difficulty.keyRoot, prevState.difficulty.keyMode, prevState.difficulty.clef, prevState.difficulty.includeAccidentals);
+        // Keep generating until we get a note within the range
+        let attempts = 0;
+        while (generated && (generated.midiNumber < prevState.difficulty.minNoteNumber || generated.midiNumber > prevState.difficulty.maxNoteNumber) && attempts < 100) {
+          generated = getRandomKeyNote(prevState.difficulty.keyRoot, prevState.difficulty.keyMode, prevState.difficulty.clef, prevState.difficulty.includeAccidentals);
+          attempts++;
+        }
         nextNote = nextFromQueue || generated;
         nextQueue = [...remaining, generated].filter(Boolean) as Note[];
       } else {

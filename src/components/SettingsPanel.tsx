@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Difficulty } from '../types';
-import { Scale, Clef } from '../types';
-import { getScaleDisplayName } from '../utils/scaleManager';
+import { KeyMode, Clef } from '../types';
+import { getMidiNote } from '../utils/midiNoteMap';
 
 interface SettingsPanelProps {
   difficulty: Difficulty;
@@ -17,68 +17,52 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onDifficultyChange,
   disabled = false,
 }) => {
-  const handleTempoChange = (tempo: 'slow' | 'medium' | 'fast') => {
-    const durationMap = {
-      slow: 3000,
-      medium: 2000,
-      fast: 1000,
-    };
-    onDifficultyChange({ tempo, displayDurationMs: durationMap[tempo] });
-  };
-
-  const handleScaleChange = (scale: Scale) => {
-    onDifficultyChange({ scale });
-  };
-
   const handleClefChange = (clef: Clef) => {
     onDifficultyChange({ clef });
   };
+
+  const CHROMATIC_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
   return (
     <div className="p-6 bg-white rounded-lg border border-gray-300 space-y-6">
       <h2 className="text-xl font-bold text-gray-800">Settings</h2>
 
-      {/* Tempo Selection */}
+      {/* Key Selection */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-3">
-          Tempo / Display Speed
+          Key (Major / Minor)
         </label>
-        <div className="flex gap-3">
-          {(['slow', 'medium', 'fast'] as const).map(tempo => (
+        
+        <div className="flex gap-2 mb-3">
+          {(['MAJOR', 'MINOR'] as const).map(mode => (
             <button
-              key={tempo}
-              onClick={() => handleTempoChange(tempo)}
+              key={mode}
+              onClick={() => onDifficultyChange({ keyMode: mode === 'MAJOR' ? KeyMode.MAJOR : KeyMode.MINOR })}
               disabled={disabled}
-              className={`px-4 py-2 rounded font-medium transition ${
-                difficulty.tempo === tempo
+              className={`flex-1 px-3 py-2 rounded font-medium transition text-sm ${
+                difficulty.keyMode === (mode === 'MAJOR' ? KeyMode.MAJOR : KeyMode.MINOR)
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
               } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              {tempo.charAt(0).toUpperCase() + tempo.slice(1)}
+              {mode}
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Scale Selection */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-3">
-          Scale
-        </label>
-        <div className="flex gap-3">
-          {[Scale.C_MAJOR, Scale.A_MINOR].map(scale => (
+        <div className="flex flex-wrap gap-2">
+          {CHROMATIC_NOTES.map(note => (
             <button
-              key={scale}
-              onClick={() => handleScaleChange(scale)}
+              key={note}
+              onClick={() => onDifficultyChange({ keyRoot: note })}
               disabled={disabled}
-              className={`px-4 py-2 rounded font-medium transition ${
-                difficulty.scale === scale
+              className={`px-3 py-2 rounded font-medium transition text-sm ${
+                difficulty.keyRoot === note
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
               } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              {getScaleDisplayName(scale)}
+              {note}
             </button>
           ))}
         </div>
@@ -90,7 +74,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           Clef
         </label>
         <div className="flex gap-3">
-          {[Clef.TREBLE, Clef.BASS, Clef.ALTO].map(clef => (
+          {[Clef.TREBLE, Clef.BASS].map(clef => (
             <button
               key={clef}
               onClick={() => handleClefChange(clef)}
@@ -139,6 +123,67 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             Include Sharps & Flats
           </span>
         </label>
+      </div>
+
+      {/* Show On-screen Keyboard Toggle */}
+      <div>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={difficulty.showOnScreenKeyboard}
+            onChange={e => onDifficultyChange({ showOnScreenKeyboard: e.target.checked })}
+            disabled={disabled}
+            className="w-5 h-5 rounded"
+          />
+          <span className="text-sm font-medium text-gray-700">Show On-screen Keyboard</span>
+        </label>
+      </div>
+
+      {/* Note Range Selection */}
+      <div className="space-y-4">
+        <label className="block text-sm font-medium text-gray-700">
+          Note Range
+        </label>
+        
+        <div className="space-y-3">
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs text-gray-600">Minimum Note</span>
+              <span className="text-sm font-semibold text-gray-800">
+                {getMidiNote(difficulty.minNoteNumber)?.noteName}{getMidiNote(difficulty.minNoteNumber)?.octave}
+              </span>
+            </div>
+            <input
+              type="range"
+              min="36"
+              max={difficulty.maxNoteNumber}
+              value={difficulty.minNoteNumber}
+              onChange={e => onDifficultyChange({ minNoteNumber: parseInt(e.target.value) })}
+              disabled={disabled}
+              className="w-full"
+            />
+            <div className="text-xs text-gray-400 mt-1">C3 — {getMidiNote(difficulty.maxNoteNumber)?.noteName}{getMidiNote(difficulty.maxNoteNumber)?.octave}</div>
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs text-gray-600">Maximum Note</span>
+              <span className="text-sm font-semibold text-gray-800">
+                {getMidiNote(difficulty.maxNoteNumber)?.noteName}{getMidiNote(difficulty.maxNoteNumber)?.octave}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={difficulty.minNoteNumber}
+              max="96"
+              value={difficulty.maxNoteNumber}
+              onChange={e => onDifficultyChange({ maxNoteNumber: parseInt(e.target.value) })}
+              disabled={disabled}
+              className="w-full"
+            />
+            <div className="text-xs text-gray-400 mt-1">{getMidiNote(difficulty.minNoteNumber)?.noteName}{getMidiNote(difficulty.minNoteNumber)?.octave} — C7</div>
+          </div>
+        </div>
       </div>
     </div>
   );
