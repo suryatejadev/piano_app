@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useMidi } from './hooks/useMidi';
 import { GameBoard } from './components/GameBoard';
 import { FlashCardsBoard } from './components/FlashCardsBoard';
 import { ChordsBoard } from './components/ChordsBoard';
@@ -10,6 +11,7 @@ type Tab = 'sight-reading' | 'flash-cards' | 'chords' | 'ear-training' | 'scales
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('sight-reading');
   const [timerMinutes, setTimerMinutes] = useState(5);
+  const midi = useMidi();
 
   return (
     <div>
@@ -70,11 +72,11 @@ function App() {
         </div>
       </div>
 
-      {activeTab === 'sight-reading' && <GameBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} />}
-      {activeTab === 'flash-cards' && <FlashCardsBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} />}
-      {activeTab === 'chords' && <ChordsBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} />}
+      {activeTab === 'sight-reading' && <GameBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} midi={midi} />}
+      {activeTab === 'flash-cards' && <FlashCardsBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} midi={midi} />}
+      {activeTab === 'chords' && <ChordsBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} midi={midi} />}
       {activeTab === 'ear-training' && <EarTrainingBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} />}
-      {activeTab === 'scales' && <ScalesBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} />}
+      {activeTab === 'scales' && <ScalesBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} midi={midi} />}
     </div>
   );
 }

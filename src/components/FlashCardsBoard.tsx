@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MidiConnectionStatus } from './MidiConnectionStatus';
-import { useMidi } from '../hooks/useMidi';
 import { TimerDoneOverlay } from './TimerDoneOverlay';
 import type { MidiNoteEvent } from '../types';
+import type { UseMidiReturn } from '../hooks/useMidi';
 import { KeyMode } from '../types';
 
 interface FlashCard {
@@ -81,11 +81,11 @@ const generateFlashCard = (settings: FlashCardSettings): FlashCard => {
   };
 };
 
-export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void }> = ({
+export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void; midi: UseMidiReturn }> = ({
   timerMinutes,
   setTimerMinutes,
+  midi,
 }) => {
-  const midi = useMidi();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<FlashCardSettings>(DEFAULT_SETTINGS);
   const [card, setCard] = useState<FlashCard>(() => generateFlashCard(DEFAULT_SETTINGS));
@@ -114,7 +114,8 @@ export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: 
 
   const handleAnswer = useCallback((playedPitchClass: number) => {
     if (timeUp) {
-      // Any key press after timer: reset and start fresh without counting this input
+      if (showTimerDone) return; // block input during the 3s overlay window
+      // overlay dismissed: reset and start fresh
       resetSession();
       setHasStarted(true);
       return;

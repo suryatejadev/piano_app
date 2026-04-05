@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useGameState } from '../hooks/useGameState';
-import { useMidi } from '../hooks/useMidi';
 import { TimerDoneOverlay } from './TimerDoneOverlay';
 import { midiToNote } from '../utils/midiNoteMap';
 import { StaffDisplay } from './StaffDisplay';
@@ -9,16 +8,17 @@ import { SettingsPanel } from './SettingsPanel';
 import { MidiConnectionStatus } from './MidiConnectionStatus';
 import { getKeyNotes } from '../utils/scaleManager';
 import type { MidiNoteEvent, Note } from '../types';
+import type { UseMidiReturn } from '../hooks/useMidi';
 
 /**
  * Main game board component that orchestrates all game components
  */
-export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void }> = ({
+export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void; midi: UseMidiReturn }> = ({
   timerMinutes,
   setTimerMinutes,
+  midi,
 }) => {
   const gameState = useGameState();
-  const midi = useMidi();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showTimerDone, setShowTimerDone] = useState(false);
   const timerRefId = useRef<NodeJS.Timeout | null>(null);
@@ -27,9 +27,9 @@ export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins:
 
   const handleOnScreenInput = (note: Note) => {
     if (!gameState.state.gameActive) {
+      if (showTimerDone) return; // block input during the 3s overlay window
       if (hasTriggeredAutoResetRef.current) {
         hasTriggeredAutoResetRef.current = false;
-        setShowTimerDone(false);
         gameState.resetStats();
       }
       gameState.startGame();
@@ -56,9 +56,9 @@ export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins:
     // Subscribe to MIDI note events
     const callback = (event: MidiNoteEvent) => {
       if (!gameState.state.gameActive) {
+        if (showTimerDone) return; // block input during the 3s overlay window
         if (hasTriggeredAutoResetRef.current) {
           hasTriggeredAutoResetRef.current = false;
-          setShowTimerDone(false);
           gameState.resetStats();
         }
         gameState.startGame();

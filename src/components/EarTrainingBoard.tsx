@@ -148,7 +148,8 @@ export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes:
 
   const submitAnswer = (degree: number) => {
     if (timeUp) {
-      // Any button press after timer: reset and start fresh without counting the click
+      if (showTimerDone) return; // block input during the 3s overlay window
+      // overlay dismissed: reset and start fresh
       setCorrectCount(0);
       setWrongCount(0);
       setElapsedSeconds(0);

@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MidiConnectionStatus } from './MidiConnectionStatus';
-import { useMidi } from '../hooks/useMidi';
 import { TimerDoneOverlay } from './TimerDoneOverlay';
 import { getStaffPosition } from '../utils/midiNoteMap';
 import type { MidiNoteEvent } from '../types';
+import type { UseMidiReturn } from '../hooks/useMidi';
 import { Clef } from '../types';
 
 type ChordQuality = 'major' | 'minor';
@@ -200,11 +200,11 @@ const renderChordStaff = (midis: number[]) => {
   );
 };
 
-export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void }> = ({
+export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void; midi: UseMidiReturn }> = ({
   timerMinutes,
   setTimerMinutes,
+  midi,
 }) => {
-  const midi = useMidi();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<ChordsSettings>(DEFAULT_SETTINGS);
   const [card, setCard] = useState<ChordCard>(() => generateChordCard(DEFAULT_SETTINGS));
@@ -274,7 +274,8 @@ export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
 
   const registerInput = useCallback((playedPitchClass: number, source: 'midi' | 'onscreen') => {
     if (timeUp) {
-      // Any key press after timer: reset and start fresh
+      if (showTimerDone) return; // block input during the 3s overlay window
+      // overlay dismissed: reset and start fresh
       resetSession();
       setHasStarted(true);
       return;
@@ -317,7 +318,8 @@ export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
     if (card.type !== 'identify') return;
 
     if (timeUp) {
-      // Any button press after timer: reset and start fresh
+      if (showTimerDone) return; // block input during the 3s overlay window
+      // overlay dismissed: reset and start fresh
       resetSession();
       setHasStarted(true);
       return;

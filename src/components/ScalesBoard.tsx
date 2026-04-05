@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useMidi } from '../hooks/useMidi';
 import { TimerDoneOverlay } from './TimerDoneOverlay';
 import type { MidiNoteEvent } from '../types';
+import type { UseMidiReturn } from '../hooks/useMidi';
 
 interface ScaleCard {
   rootNote: string;
@@ -24,9 +24,10 @@ const createScaleCard = (): ScaleCard => {
   };
 };
 
-export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void }> = ({
+export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void; midi: UseMidiReturn }> = ({
   timerMinutes,
   setTimerMinutes,
+  midi,
 }) => {
   const [card, setCard] = useState<ScaleCard>(() => createScaleCard());
   const [scalesCompleted, setScalesCompleted] = useState(0);
@@ -36,7 +37,6 @@ export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
   const [showTimerDone, setShowTimerDone] = useState(false);
   const [feedback, setFeedback] = useState('');
 
-  const midi = useMidi();
   const roundDurationSeconds = timerMinutes * 60;
   const unsubscribeMidiRef = useRef<(() => void) | null>(null);
 
@@ -47,7 +47,8 @@ export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
     const callback = (event: MidiNoteEvent) => {
       if (event.noteNumber === 36) {
         if (timeUp) {
-          // Any key press after timer: reset and start fresh
+          if (showTimerDone) return; // block input during the 3s overlay window
+          // overlay dismissed: reset and start fresh
           setScalesCompleted(0);
           setElapsedSeconds(0);
           setTimeUp(false);
