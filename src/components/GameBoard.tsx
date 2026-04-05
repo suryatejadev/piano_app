@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useGameState } from '../hooks/useGameState';
 import { useMidi } from '../hooks/useMidi';
-import { playBeep } from '../utils/audioBeep';
+import { TimerDoneOverlay } from './TimerDoneOverlay';
 import { midiToNote } from '../utils/midiNoteMap';
 import { StaffDisplay } from './StaffDisplay';
 import { StatsDisplay } from './StatsDisplay';
@@ -20,12 +20,18 @@ export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins:
   const gameState = useGameState();
   const midi = useMidi();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showTimerDone, setShowTimerDone] = useState(false);
   const timerRefId = useRef<NodeJS.Timeout | null>(null);
   const unsubscribeMidiRef = useRef<(() => void) | null>(null);
   const hasTriggeredAutoResetRef = useRef(false);
 
   const handleOnScreenInput = (note: Note) => {
     if (!gameState.state.gameActive) {
+      if (hasTriggeredAutoResetRef.current) {
+        hasTriggeredAutoResetRef.current = false;
+        setShowTimerDone(false);
+        gameState.resetStats();
+      }
       gameState.startGame();
       return;
     }
@@ -50,6 +56,11 @@ export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins:
     // Subscribe to MIDI note events
     const callback = (event: MidiNoteEvent) => {
       if (!gameState.state.gameActive) {
+        if (hasTriggeredAutoResetRef.current) {
+          hasTriggeredAutoResetRef.current = false;
+          setShowTimerDone(false);
+          gameState.resetStats();
+        }
         gameState.startGame();
         return;
       }
@@ -94,7 +105,7 @@ export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins:
     gameState.stopGame,
   ]);
 
-  // Auto-reset and beep when game stops due to timer
+  // Show overlay when game stops due to timer
   useEffect(() => {
     const isGameStopped = !gameState.state.gameActive;
     const isTimeUp = gameState.state.stats.elapsedSeconds >= timerMinutes * 60 - 1;
@@ -104,18 +115,12 @@ export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins:
     }
 
     hasTriggeredAutoResetRef.current = true;
+    setShowTimerDone(true);
+  }, [gameState.state.gameActive, gameState.state.stats.elapsedSeconds, timerMinutes]);
 
-    const handleTimeUp = async () => {
-      await playBeep(300, 600, 0.4);
-      // Auto-reset after beep finishes
-      setTimeout(() => {
-        gameState.resetStats();
-        hasTriggeredAutoResetRef.current = false;
-      }, 350);
-    };
-
-    handleTimeUp();
-  }, [gameState.state.gameActive, gameState.state.stats.elapsedSeconds, timerMinutes, gameState.resetStats]);
+  const handleDismissTimerDone = useCallback(() => {
+    setShowTimerDone(false);
+  }, []);
 
   // Build on-screen note buttons from the current key, respecting note range
   const scaleNotes: Note[] = getKeyNotes(gameState.state.difficulty.keyRoot, gameState.state.difficulty.keyMode, gameState.state.difficulty.includeAccidentals)
@@ -142,6 +147,7 @@ export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins:
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
+      <TimerDoneOverlay show={showTimerDone} onDismiss={handleDismissTimerDone} />
       {settingsOpen && (
         <button
           onClick={() => setSettingsOpen(false)}

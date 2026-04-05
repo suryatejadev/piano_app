@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MidiConnectionStatus } from './MidiConnectionStatus';
 import { useMidi } from '../hooks/useMidi';
-import { playBeep } from '../utils/audioBeep';
+import { TimerDoneOverlay } from './TimerDoneOverlay';
 import type { MidiNoteEvent } from '../types';
 import { KeyMode } from '../types';
 
@@ -95,12 +95,30 @@ export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: 
   const [hasStarted, setHasStarted] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [timeUp, setTimeUp] = useState(false);
+  const [showTimerDone, setShowTimerDone] = useState(false);
   const unsubscribeMidiRef = useRef<(() => void) | null>(null);
 
   const roundDurationSeconds = timerMinutes * 60;
 
+  const resetSession = useCallback((nextSettings?: typeof settings) => {
+    const s = nextSettings ?? settings;
+    setCorrectCount(0);
+    setWrongCount(0);
+    setElapsedSeconds(0);
+    setHasStarted(false);
+    setTimeUp(false);
+    setShowTimerDone(false);
+    setFeedback('');
+    setCard(generateFlashCard(s));
+  }, [settings]);
+
   const handleAnswer = useCallback((playedPitchClass: number) => {
-    if (timeUp) return;
+    if (timeUp) {
+      // Any key press after timer: reset and start fresh without counting this input
+      resetSession();
+      setHasStarted(true);
+      return;
+    }
 
     if (!hasStarted) {
       setHasStarted(true);
@@ -144,26 +162,15 @@ export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: 
     return () => clearInterval(intervalId);
   }, [timeUp, hasStarted, roundDurationSeconds]);
 
-  // Auto-reset and beep when timer expires
+  // Show overlay when timer expires
   useEffect(() => {
     if (!timeUp) return;
+    setShowTimerDone(true);
+  }, [timeUp]);
 
-    const handleTimeUp = async () => {
-      await playBeep(300, 600, 0.4);
-      // Auto-reset after beep finishes
-      setTimeout(() => {
-        setCorrectCount(0);
-        setWrongCount(0);
-        setElapsedSeconds(0);
-        setHasStarted(false);
-        setTimeUp(false);
-        setFeedback('');
-        setCard(generateFlashCard(settings));
-      }, 350);
-    };
-
-    handleTimeUp();
-  }, [timeUp, settings]);
+  const handleDismissTimerDone = useCallback(() => {
+    setShowTimerDone(false);
+  }, []);
 
   useEffect(() => {
     setCard(generateFlashCard(settings));
@@ -194,6 +201,7 @@ export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: 
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
+      <TimerDoneOverlay show={showTimerDone} onDismiss={handleDismissTimerDone} />
       {settingsOpen && (
         <button
           onClick={() => setSettingsOpen(false)}
@@ -384,14 +392,7 @@ export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: 
               Next Card
             </button>
             <button
-              onClick={() => {
-                setCorrectCount(0);
-                setWrongCount(0);
-                setElapsedSeconds(0);
-                setHasStarted(false);
-                setTimeUp(false);
-                nextCard();
-              }}
+              onClick={() => resetSession()}
               className="flex-1 px-6 py-3 bg-slate-900 hover:bg-black text-white font-bold rounded-lg transition"
             >
               Reset Session

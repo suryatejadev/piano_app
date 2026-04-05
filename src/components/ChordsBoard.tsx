@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MidiConnectionStatus } from './MidiConnectionStatus';
 import { useMidi } from '../hooks/useMidi';
-import { playBeep } from '../utils/audioBeep';
+import { TimerDoneOverlay } from './TimerDoneOverlay';
 import { getStaffPosition } from '../utils/midiNoteMap';
 import type { MidiNoteEvent } from '../types';
 import { Clef } from '../types';
@@ -214,10 +214,23 @@ export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
   const [hasStarted, setHasStarted] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [timeUp, setTimeUp] = useState(false);
+  const [showTimerDone, setShowTimerDone] = useState(false);
   const unsubscribeMidiRef = useRef<(() => void) | null>(null);
   const attemptedPitchClassesRef = useRef<Set<number>>(new Set());
 
   const roundDurationSeconds = timerMinutes * 60;
+
+  const resetSession = useCallback(() => {
+    setCorrectCount(0);
+    setWrongCount(0);
+    setElapsedSeconds(0);
+    setHasStarted(false);
+    setTimeUp(false);
+    setShowTimerDone(false);
+    setFeedback('');
+    setCard(generateChordCard(settings));
+    attemptedPitchClassesRef.current.clear();
+  }, [settings]);
 
   const nextCard = useCallback(() => {
     if (timeUp) return;
@@ -249,30 +262,23 @@ export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
     return () => clearInterval(intervalId);
   }, [timeUp, hasStarted, roundDurationSeconds]);
 
-  // Auto-reset and beep when timer expires
+  // Show overlay when timer expires
   useEffect(() => {
     if (!timeUp) return;
+    setShowTimerDone(true);
+  }, [timeUp]);
 
-    const handleTimeUp = async () => {
-      await playBeep(300, 600, 0.4);
-      // Auto-reset after beep finishes
-      setTimeout(() => {
-        setCorrectCount(0);
-        setWrongCount(0);
-        setElapsedSeconds(0);
-        setHasStarted(false);
-        setTimeUp(false);
-        setFeedback('');
-        setCard(generateChordCard(settings));
-        attemptedPitchClassesRef.current.clear();
-      }, 350);
-    };
-
-    handleTimeUp();
-  }, [timeUp, settings]);
+  const handleDismissTimerDone = useCallback(() => {
+    setShowTimerDone(false);
+  }, []);
 
   const registerInput = useCallback((playedPitchClass: number, source: 'midi' | 'onscreen') => {
-    if (timeUp) return;
+    if (timeUp) {
+      // Any key press after timer: reset and start fresh
+      resetSession();
+      setHasStarted(true);
+      return;
+    }
 
     if (card.type === 'identify') {
       if (source === 'midi') {
@@ -308,7 +314,14 @@ export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
   }, [timeUp, card, hasStarted, settings]);
 
   const handleIdentifyChoice = (choice: string) => {
-    if (timeUp || card.type !== 'identify') return;
+    if (card.type !== 'identify') return;
+
+    if (timeUp) {
+      // Any button press after timer: reset and start fresh
+      resetSession();
+      setHasStarted(true);
+      return;
+    }
 
     if (!hasStarted) {
       setHasStarted(true);
@@ -351,6 +364,7 @@ export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
+      <TimerDoneOverlay show={showTimerDone} onDismiss={handleDismissTimerDone} />
       {settingsOpen && (
         <button
           onClick={() => setSettingsOpen(false)}

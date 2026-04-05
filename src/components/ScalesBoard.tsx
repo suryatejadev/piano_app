@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMidi } from '../hooks/useMidi';
-import { playBeep } from '../utils/audioBeep';
+import { TimerDoneOverlay } from './TimerDoneOverlay';
 import type { MidiNoteEvent } from '../types';
 
 interface ScaleCard {
@@ -33,6 +33,7 @@ export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
   const [hasStarted, setHasStarted] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [timeUp, setTimeUp] = useState(false);
+  const [showTimerDone, setShowTimerDone] = useState(false);
   const [feedback, setFeedback] = useState('');
 
   const midi = useMidi();
@@ -45,15 +46,24 @@ export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
   useEffect(() => {
     const callback = (event: MidiNoteEvent) => {
       if (event.noteNumber === 36) {
+        if (timeUp) {
+          // Any key press after timer: reset and start fresh
+          setScalesCompleted(0);
+          setElapsedSeconds(0);
+          setTimeUp(false);
+          setFeedback('');
+          setCard(createScaleCard());
+          setHasStarted(true);
+          return;
+        }
+
         if (!hasStarted) {
           setHasStarted(true);
         }
 
-        if (!timeUp) {
-          setScalesCompleted(prev => prev + 1);
-          setCard(createScaleCard());
-          setFeedback('');
-        }
+        setScalesCompleted(prev => prev + 1);
+        setCard(createScaleCard());
+        setFeedback('');
       }
     };
 
@@ -69,22 +79,12 @@ export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
   // Auto-reset and beep when timer expires
   useEffect(() => {
     if (!timeUp) return;
-
-    const handleTimeUp = async () => {
-      await playBeep(300, 600, 0.4);
-      // Auto-reset after beep finishes
-      setTimeout(() => {
-        setScalesCompleted(0);
-        setElapsedSeconds(0);
-        setHasStarted(false);
-        setTimeUp(false);
-        setFeedback('');
-        setCard(createScaleCard());
-      }, 350);
-    };
-
-    handleTimeUp();
+    setShowTimerDone(true);
   }, [timeUp]);
+
+  const handleDismissTimerDone = useCallback(() => {
+    setShowTimerDone(false);
+  }, []);
 
   // Timer logic
   useEffect(() => {
@@ -116,6 +116,16 @@ export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
     setFeedback('');
   };
 
+  const resetSession = () => {
+    setScalesCompleted(0);
+    setElapsedSeconds(0);
+    setHasStarted(false);
+    setTimeUp(false);
+    setShowTimerDone(false);
+    setFeedback('');
+    setCard(createScaleCard());
+  };
+
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -124,6 +134,7 @@ export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
+      <TimerDoneOverlay show={showTimerDone} onDismiss={handleDismissTimerDone} />
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -206,14 +217,7 @@ export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
               Next Scale (Skip)
             </button>
             <button
-              onClick={() => {
-                setScalesCompleted(0);
-                setElapsedSeconds(0);
-                setHasStarted(false);
-                setTimeUp(false);
-                setFeedback('');
-                setCard(createScaleCard());
-              }}
+              onClick={resetSession}
               className="flex-1 px-6 py-3 bg-slate-900 hover:bg-black text-white font-bold rounded-lg transition"
             >
               Reset Session

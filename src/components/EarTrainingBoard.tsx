@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { playBeep } from '../utils/audioBeep';
+import { TimerDoneOverlay } from './TimerDoneOverlay';
 
 interface EarTrainingCard {
   tonicMidi: number;
@@ -39,6 +39,7 @@ export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes:
   const [hasStarted, setHasStarted] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [timeUp, setTimeUp] = useState(false);
+  const [showTimerDone, setShowTimerDone] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
 
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -130,23 +131,12 @@ export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes:
   // Auto-reset and beep when timer expires
   useEffect(() => {
     if (!timeUp) return;
-
-    const handleTimeUp = async () => {
-      await playBeep(300, 600, 0.4);
-      // Auto-reset after beep finishes
-      setTimeout(() => {
-        setCorrectCount(0);
-        setWrongCount(0);
-        setElapsedSeconds(0);
-        setHasStarted(false);
-        setTimeUp(false);
-        setFeedback('');
-        setCard(createCard());
-      }, 350);
-    };
-
-    handleTimeUp();
+    setShowTimerDone(true);
   }, [timeUp]);
+
+  const handleDismissTimerDone = useCallback(() => {
+    setShowTimerDone(false);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -157,7 +147,18 @@ export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes:
   }, []);
 
   const submitAnswer = (degree: number) => {
-    if (timeUp) return;
+    if (timeUp) {
+      // Any button press after timer: reset and start fresh without counting the click
+      setCorrectCount(0);
+      setWrongCount(0);
+      setElapsedSeconds(0);
+      setTimeUp(false);
+      setShowTimerDone(false);
+      setFeedback('');
+      setCard(createCard());
+      setHasStarted(true);
+      return;
+    }
 
     if (!hasStarted) {
       setHasStarted(true);
@@ -184,6 +185,7 @@ export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes:
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
+      <TimerDoneOverlay show={showTimerDone} onDismiss={handleDismissTimerDone} />
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -295,6 +297,7 @@ export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes:
                 setElapsedSeconds(0);
                 setHasStarted(false);
                 setTimeUp(false);
+                setShowTimerDone(false);
                 setFeedback('');
                 setCard(createCard());
               }}

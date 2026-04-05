@@ -63,7 +63,8 @@ const buildNoteQueue = (difficulty: Difficulty, count = 10): Note[] => {
   
   while (notes.length < count && attempts < maxAttempts) {
     const note = getRandomKeyNote(difficulty.keyRoot, difficulty.keyMode, difficulty.clef, difficulty.includeAccidentals);
-    if (note && isNoteInDifficultyRange(note, difficulty)) {
+    const lastNote = notes[notes.length - 1];
+    if (note && isNoteInDifficultyRange(note, difficulty) && note.midiNumber !== lastNote?.midiNumber) {
       notes.push(note);
     }
     attempts++;
@@ -147,10 +148,19 @@ export const useGameState = (): UseGameStateReturn => {
         }
 
         const [nextFromQueue, ...remaining] = prevState.noteQueue;
+        // The next displayed note will be nextFromQueue; generate a new tail note
+        // that differs from the last note in the remaining queue (or nextFromQueue if queue is empty).
+        const avoidMidi = remaining.length > 0
+          ? remaining[remaining.length - 1].midiNumber
+          : nextFromQueue?.midiNumber;
         let generated = getRandomKeyNote(prevState.difficulty.keyRoot, prevState.difficulty.keyMode, prevState.difficulty.clef, prevState.difficulty.includeAccidentals);
-        // Keep generating until we get a note within the range
+        // Keep generating until we get a note within the range and not a consecutive duplicate
         let attempts = 0;
-        while (generated && !isNoteInDifficultyRange(generated, prevState.difficulty) && attempts < 100) {
+        while (
+          generated &&
+          (!isNoteInDifficultyRange(generated, prevState.difficulty) || generated.midiNumber === avoidMidi) &&
+          attempts < 100
+        ) {
           generated = getRandomKeyNote(prevState.difficulty.keyRoot, prevState.difficulty.keyMode, prevState.difficulty.clef, prevState.difficulty.includeAccidentals);
           attempts++;
         }
