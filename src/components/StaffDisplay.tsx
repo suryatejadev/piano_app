@@ -84,17 +84,19 @@ export const StaffDisplay: React.FC<StaffDisplayProps> = ({
   const renderClef = () => {
     const clefX = MARGIN + 30;
 
+  const CLEF_FONT = "'Noto Sans Symbols 2', serif";
+
     switch (clef) {
       case Clef.TREBLE:
         return (
           <g key="treble-clef" className="text-gray-800">
             <text
-              x={clefX}
-              y={staffLines[3] + 8}
-              fontSize="60"
-              fontWeight="bold"
+              x={clefX + 6}
+              y={staffLines[3] + 14}
+              fontSize="130"
               fill="currentColor"
               textAnchor="middle"
+              fontFamily={CLEF_FONT}
             >
               𝄞
             </text>
@@ -105,13 +107,13 @@ export const StaffDisplay: React.FC<StaffDisplayProps> = ({
         return (
           <g key="bass-clef" className="text-gray-800">
             <text
-              x={clefX}
-              y={staffLines[0] + 3}
-              fontSize="50"
-              fontWeight="bold"
+              x={clefX + 6}
+              y={staffLines[0] - 2}
+              fontSize="110"
               fill="currentColor"
               textAnchor="middle"
               dominantBaseline="hanging"
+              fontFamily={CLEF_FONT}
             >
               𝄢
             </text>
@@ -122,23 +124,23 @@ export const StaffDisplay: React.FC<StaffDisplayProps> = ({
         return (
           <g key="grand-clef" className="text-gray-800">
             <text
-              x={clefX}
-              y={trebleStaffLines[3] + 8}
-              fontSize="60"
-              fontWeight="bold"
+              x={clefX + 6}
+              y={trebleStaffLines[3] + 14}
+              fontSize="130"
               fill="currentColor"
               textAnchor="middle"
+              fontFamily={CLEF_FONT}
             >
               𝄞
             </text>
             <text
               x={clefX}
-              y={bassStaffLines[0] + 3}
-              fontSize="50"
-              fontWeight="bold"
+              y={bassStaffLines[0] - 2}
+              fontSize="110"
               fill="currentColor"
               textAnchor="middle"
               dominantBaseline="hanging"
+              fontFamily={CLEF_FONT}
             >
               𝄢
             </text>
@@ -155,6 +157,7 @@ export const StaffDisplay: React.FC<StaffDisplayProps> = ({
               fontWeight="bold"
               fill="currentColor"
               textAnchor="middle"
+              fontFamily={CLEF_FONT}
             >
               𝄡
             </text>
@@ -173,7 +176,7 @@ export const StaffDisplay: React.FC<StaffDisplayProps> = ({
 
   const renderKeySignature = () => {
     if (keySigInfo.type === 'none' || keySigInfo.count === 0) return null;
-    const keySigStartX = MARGIN + 65;
+    const keySigStartX = MARGIN + 85;
 
     // SVG sharp symbol: two vertical lines spanning 2 spaces, two horizontal bars spanning 1 space
     const renderSharp = (x: number, y: number, key: string) => {
