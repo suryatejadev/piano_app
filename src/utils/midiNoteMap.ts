@@ -87,16 +87,25 @@ export const getMidiNumber = (noteName: string, octave: number): number => {
 
 /**
  * Convert MIDI note to Note object
- * Accidentals are deterministically represented as sharp or flat based on MIDI number
+ * When preferFlats is true, accidentals render as flats (Ab, Bb, etc.).
+ * When false, they render as sharps (G#, A#, etc.).
+ * When undefined, falls back to MIDI-number parity heuristic.
+ * When keyRoot/keyMode are provided, accidentals covered by the key signature
+ * are suppressed (no ♯/♭ shown) and positioned on the correct letter's staff line.
  */
-export const midiToNote = (midiNumber: number, clef: Clef = Clef.TREBLE): Note | null => {
+export const midiToNote = (
+  midiNumber: number,
+  clef: Clef = Clef.TREBLE,
+  preferFlats?: boolean,
+  keyRoot?: string,
+  keyMode?: string,
+): Note | null => {
   const midiMap = getMidiNote(midiNumber);
   if (!midiMap) return null;
 
   const { noteName, octave } = midiMap;
   let displayNoteName = noteName;
   
-  // Convert sharps to their enharmonic flat equivalents based on MIDI number parity
   const sharpToFlatMap: Record<string, string> = {
     'C#': 'Db',
     'D#': 'Eb',
@@ -104,14 +113,37 @@ export const midiToNote = (midiNumber: number, clef: Clef = Clef.TREBLE): Note |
     'G#': 'Ab',
     'A#': 'Bb',
   };
-  
-  // Use flats for odd MIDI numbers, sharps for even (ensures variety and consistency)
-  if (noteName in sharpToFlatMap && midiNumber % 2 === 1) {
-    displayNoteName = sharpToFlatMap[noteName as keyof typeof sharpToFlatMap];
+
+  const isAccidentalNote = noteName in sharpToFlatMap;
+  const noteClass = midiNumber % 12;
+
+  // Check if this accidental is covered by the key signature
+  let suppressAccidental = false;
+  let isFlatSpelling = false;
+
+  if (isAccidentalNote && keyRoot && keyMode) {
+    const keySig = getKeySignatureAccidentals(keyRoot, keyMode);
+    if (keySig.classes.has(noteClass)) {
+      suppressAccidental = true;
+      if (keySig.type === 'flat') {
+        displayNoteName = sharpToFlatMap[noteName as keyof typeof sharpToFlatMap];
+        isFlatSpelling = true;
+      }
+      // For sharp key sigs, keep the sharp name (position is already correct)
+    }
+  }
+
+  // If not suppressed by key sig, apply preferFlats logic
+  if (isAccidentalNote && !suppressAccidental) {
+    const useFlat = preferFlats !== undefined ? preferFlats : (midiNumber % 2 === 1);
+    if (useFlat) {
+      displayNoteName = sharpToFlatMap[noteName as keyof typeof sharpToFlatMap];
+      isFlatSpelling = true;
+    }
   }
   
-  const isSharp = displayNoteName.includes('#');
-  const isFlat = displayNoteName.includes('b');
+  const isSharp = suppressAccidental ? false : displayNoteName.includes('#');
+  const isFlat = suppressAccidental ? false : displayNoteName.includes('b');
   const baseNoteName = displayNoteName.replace('#', '').replace('b', '');
 
   const staffPositionMap = {
@@ -121,7 +153,12 @@ export const midiToNote = (midiNumber: number, clef: Clef = Clef.TREBLE): Note |
     [Clef.ALTO]: midiMap.staffPosition.alto,
   };
 
-  const staffPosition = staffPositionMap[clef];
+  // When using flat spelling, the midiMap position is based on the sharp note (e.g. G for G#)
+  // but we need the flat letter's position (e.g. A for Ab), which is +1 diatonic step
+  let staffPosition = staffPositionMap[clef];
+  if (isFlatSpelling) {
+    staffPosition += 1;
+  }
 
   return {
     name: baseNoteName,
@@ -132,6 +169,49 @@ export const midiToNote = (midiNumber: number, clef: Clef = Clef.TREBLE): Note |
     staffPosition,
     ledgerLine: Math.abs(staffPosition) > 5 ? Math.ceil(Math.abs(staffPosition) / 2) : undefined,
   };
+};
+
+/**
+ * Get the set of MIDI note classes (0-11) that are accidentals in the key signature.
+ */
+// Sharp order: F# C# G# D# A# E# B#
+const SHARP_ORDER_CLASSES = [6, 1, 8, 3, 10, 5, 0];
+// Flat order: Bb Eb Ab Db Gb Cb Fb
+const FLAT_ORDER_CLASSES = [10, 3, 8, 1, 6, 0, 5];
+
+const SHARP_KEY_COUNT: Record<string, number> = {
+  'C': 0, 'G': 1, 'D': 2, 'A': 3, 'E': 4, 'B': 5, 'F#': 6, 'C#': 7,
+};
+const FLAT_KEY_COUNT: Record<string, number> = {
+  'C': 0, 'F': 1, 'Bb': 2, 'Eb': 3, 'Ab': 4, 'Db': 5, 'Gb': 6, 'Cb': 7,
+};
+const MINOR_TO_MAJOR_MAP: Record<string, string> = {
+  'A': 'C', 'E': 'G', 'B': 'D', 'F#': 'A', 'C#': 'E', 'G#': 'B', 'D#': 'F#', 'A#': 'C#',
+  'D': 'F', 'G': 'Bb', 'C': 'Eb', 'F': 'Ab', 'Bb': 'Db', 'Eb': 'Gb', 'Ab': 'Cb',
+};
+
+function getKeySignatureAccidentals(keyRoot: string, keyMode: string): { classes: Set<number>; type: 'sharp' | 'flat' | 'none' } {
+  const majorKey = keyMode === 'MINOR' ? (MINOR_TO_MAJOR_MAP[keyRoot] || 'C') : keyRoot;
+  if (majorKey in SHARP_KEY_COUNT && SHARP_KEY_COUNT[majorKey] > 0) {
+    const count = SHARP_KEY_COUNT[majorKey];
+    return { classes: new Set(SHARP_ORDER_CLASSES.slice(0, count)), type: 'sharp' };
+  }
+  if (majorKey in FLAT_KEY_COUNT && FLAT_KEY_COUNT[majorKey] > 0) {
+    const count = FLAT_KEY_COUNT[majorKey];
+    return { classes: new Set(FLAT_ORDER_CLASSES.slice(0, count)), type: 'flat' };
+  }
+  return { classes: new Set(), type: 'none' };
+}
+
+/**
+ * Determine whether a key uses flats for accidentals
+ */
+const FLAT_MAJOR_KEYS = new Set(['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb']);
+const FLAT_MINOR_ROOTS = new Set(['D', 'G', 'C', 'F', 'Bb', 'Eb', 'Ab']);
+
+export const keyUsesFlats = (keyRoot: string, keyMode: string): boolean => {
+  if (keyMode === 'MINOR') return FLAT_MINOR_ROOTS.has(keyRoot);
+  return FLAT_MAJOR_KEYS.has(keyRoot);
 };
 
 /**

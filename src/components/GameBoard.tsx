@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useGameState } from '../hooks/useGameState';
 import { TimerDoneOverlay } from './TimerDoneOverlay';
-import { midiToNote } from '../utils/midiNoteMap';
+import { midiToNote, keyUsesFlats } from '../utils/midiNoteMap';
 import { StaffDisplay } from './StaffDisplay';
 import { StatsDisplay } from './StatsDisplay';
 import { SettingsPanel } from './SettingsPanel';
@@ -66,7 +66,7 @@ export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins:
         return;
       }
 
-      const playedNote = midiToNote(event.noteNumber, gameState.state.difficulty.clef);
+      const playedNote = midiToNote(event.noteNumber, gameState.state.difficulty.clef, keyUsesFlats(gameState.state.difficulty.keyRoot, gameState.state.difficulty.keyMode), gameState.state.difficulty.keyRoot, gameState.state.difficulty.keyMode);
       if (playedNote) {
         gameState.handleNotePlay(playedNote);
       }
@@ -125,7 +125,7 @@ export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins:
 
   // Build on-screen note buttons from the current key, respecting note range
   const scaleNotes: Note[] = getKeyNotes(gameState.state.difficulty.keyRoot, gameState.state.difficulty.keyMode, gameState.state.difficulty.includeAccidentals)
-    .map(midi => midiToNote(midi, gameState.state.difficulty.clef))
+    .map(midi => midiToNote(midi, gameState.state.difficulty.clef, keyUsesFlats(gameState.state.difficulty.keyRoot, gameState.state.difficulty.keyMode), gameState.state.difficulty.keyRoot, gameState.state.difficulty.keyMode))
     .filter((n): n is Note => {
       if (!n) return false;
 

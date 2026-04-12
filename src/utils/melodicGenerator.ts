@@ -1,7 +1,7 @@
 import type { Note, Difficulty } from '../types';
 import { Clef } from '../types';
 import { getKeyNotes } from './scaleManager';
-import { midiToNote } from './midiNoteMap';
+import { midiToNote, keyUsesFlats } from './midiNoteMap';
 
 // --- Interval weights (in scale degrees) ---
 // Positive = up, negative = down. Weights determine selection probability.
@@ -204,23 +204,24 @@ function generateNextIndex(gs: GeneratorState, currentIndex: number): number {
   return nextIndex;
 }
 
-function noteFromIndex(gs: GeneratorState, index: number, clef: Clef): Note | null {
+function noteFromIndex(gs: GeneratorState, index: number, clef: Clef, preferFlats: boolean, keyRoot: string, keyMode: string): Note | null {
   const midiNumber = gs.scaleNotes[index];
   if (midiNumber === undefined) return null;
   // For grand staff, pick the appropriate clef based on note position
   const noteClef = clef === Clef.GRAND
     ? (midiNumber >= 60 ? Clef.TREBLE : Clef.BASS)
     : clef;
-  return midiToNote(midiNumber, noteClef);
+  return midiToNote(midiNumber, noteClef, preferFlats, keyRoot, keyMode);
 }
 
 export function buildMelodicNoteQueue(difficulty: Difficulty, count = 10): Note[] {
   const gs = initGeneratorState(difficulty);
+  const preferFlats = keyUsesFlats(difficulty.keyRoot, difficulty.keyMode);
   if (gs.scaleNotes.length < 3) {
     // Fallback: not enough notes in range, return what we can
     return gs.scaleNotes
       .slice(0, count)
-      .map(midi => midiToNote(midi, difficulty.clef))
+      .map(midi => midiToNote(midi, difficulty.clef, preferFlats, difficulty.keyRoot, difficulty.keyMode))
       .filter(Boolean) as Note[];
   }
 
@@ -228,7 +229,7 @@ export function buildMelodicNoteQueue(difficulty: Difficulty, count = 10): Note[
   let currentIndex = gs.anchorIndex;
 
   // Generate first note
-  const firstNote = noteFromIndex(gs, currentIndex, difficulty.clef);
+  const firstNote = noteFromIndex(gs, currentIndex, difficulty.clef, preferFlats, difficulty.keyRoot, difficulty.keyMode);
   if (firstNote) notes.push(firstNote);
   startNewPhrase(gs);
 
@@ -244,7 +245,7 @@ export function buildMelodicNoteQueue(difficulty: Difficulty, count = 10): Note[
       for (const relIdx of gs.previousMotif) {
         if (notes.length >= count) break;
         const idx = clamp(relIdx + transposition, 0, gs.scaleNotes.length - 1);
-        const note = noteFromIndex(gs, idx, difficulty.clef);
+        const note = noteFromIndex(gs, idx, difficulty.clef, preferFlats, difficulty.keyRoot, difficulty.keyMode);
         if (note && note.midiNumber !== notes[notes.length - 1]?.midiNumber) {
           notes.push(note);
           currentIndex = idx;
@@ -266,7 +267,7 @@ export function buildMelodicNoteQueue(difficulty: Difficulty, count = 10): Note[
 
     while (gs.phraseRemaining > 0 && notes.length < count) {
       const nextIndex = generateNextIndex(gs, currentIndex);
-      const note = noteFromIndex(gs, nextIndex, difficulty.clef);
+      const note = noteFromIndex(gs, nextIndex, difficulty.clef, preferFlats, difficulty.keyRoot, difficulty.keyMode);
       if (note && note.midiNumber !== notes[notes.length - 1]?.midiNumber) {
         notes.push(note);
         phraseIndices.push(nextIndex);
@@ -274,7 +275,7 @@ export function buildMelodicNoteQueue(difficulty: Difficulty, count = 10): Note[
       } else if (note) {
         // If same as last note, nudge by 1
         const nudged = clamp(nextIndex + (Math.random() < 0.5 ? 1 : -1), 0, gs.scaleNotes.length - 1);
-        const nudgedNote = noteFromIndex(gs, nudged, difficulty.clef);
+        const nudgedNote = noteFromIndex(gs, nudged, difficulty.clef, preferFlats, difficulty.keyRoot, difficulty.keyMode);
         if (nudgedNote && nudgedNote.midiNumber !== notes[notes.length - 1]?.midiNumber) {
           notes.push(nudgedNote);
           phraseIndices.push(nudged);
@@ -297,6 +298,7 @@ export function generateNextMelodicNote(
   recentNotes: Note[],
 ): Note | null {
   const gs = initGeneratorState(difficulty);
+  const preferFlats = keyUsesFlats(difficulty.keyRoot, difficulty.keyMode);
   if (gs.scaleNotes.length < 3) return null;
 
   const currentIndex = findClosestIndex(gs.scaleNotes, lastNote.midiNumber);
@@ -319,7 +321,7 @@ export function generateNextMelodicNote(
   let attempts = 0;
   while (attempts < 50) {
     const nextIndex = generateNextIndex(gs, currentIndex);
-    const note = noteFromIndex(gs, nextIndex, difficulty.clef);
+    const note = noteFromIndex(gs, nextIndex, difficulty.clef, preferFlats, difficulty.keyRoot, difficulty.keyMode);
     if (note && note.midiNumber !== lastNote.midiNumber) {
       return note;
     }
@@ -332,5 +334,5 @@ export function generateNextMelodicNote(
     0,
     gs.scaleNotes.length - 1,
   );
-  return noteFromIndex(gs, fallbackIndex, difficulty.clef);
+  return noteFromIndex(gs, fallbackIndex, difficulty.clef, preferFlats, difficulty.keyRoot, difficulty.keyMode);
 }
