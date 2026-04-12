@@ -1,17 +1,17 @@
 import { useState, useCallback } from 'react';
 import type { GameState, Note, Stats, Difficulty } from '../types';
 import { Clef, KeyMode } from '../types';
-import { getRandomKeyNote } from '../utils/scaleManager';
+import { buildMelodicNoteQueue, generateNextMelodicNote } from '../utils/melodicGenerator';
 
 const DEFAULT_DIFFICULTY: Difficulty = {
   tempo: 'medium',
   showAnswer: false,
   includeAccidentals: false,
   showOnScreenKeyboard: false,
-  trebleMinNoteNumber: 57, // A3
-  trebleMaxNoteNumber: 84, // C6
-  bassMinNoteNumber: 45, // A2
-  bassMaxNoteNumber: 60, // C4
+  trebleMinNoteNumber: 60, // C4 (middle C)
+  trebleMaxNoteNumber: 72, // C5
+  bassMinNoteNumber: 48, // C3
+  bassMaxNoteNumber: 60, // C4 (middle C)
   keyRoot: 'C',
   keyMode: KeyMode.MAJOR,
   clef: Clef.TREBLE,
@@ -57,19 +57,7 @@ const isNoteInDifficultyRange = (note: Note, difficulty: Difficulty): boolean =>
 };
 
 const buildNoteQueue = (difficulty: Difficulty, count = 10): Note[] => {
-  const notes: Note[] = [];
-  let attempts = 0;
-  const maxAttempts = count * 100; // Prevent infinite loops
-  
-  while (notes.length < count && attempts < maxAttempts) {
-    const note = getRandomKeyNote(difficulty.keyRoot, difficulty.keyMode, difficulty.clef, difficulty.includeAccidentals);
-    const lastNote = notes[notes.length - 1];
-    if (note && isNoteInDifficultyRange(note, difficulty) && note.midiNumber !== lastNote?.midiNumber) {
-      notes.push(note);
-    }
-    attempts++;
-  }
-  return notes;
+  return buildMelodicNoteQueue(difficulty, count);
 };
 
 export interface UseGameStateReturn {
@@ -148,22 +136,16 @@ export const useGameState = (): UseGameStateReturn => {
         }
 
         const [nextFromQueue, ...remaining] = prevState.noteQueue;
-        // The next displayed note will be nextFromQueue; generate a new tail note
-        // that differs from the last note in the remaining queue (or nextFromQueue if queue is empty).
-        const avoidMidi = remaining.length > 0
-          ? remaining[remaining.length - 1].midiNumber
-          : nextFromQueue?.midiNumber;
-        let generated = getRandomKeyNote(prevState.difficulty.keyRoot, prevState.difficulty.keyMode, prevState.difficulty.clef, prevState.difficulty.includeAccidentals);
-        // Keep generating until we get a note within the range and not a consecutive duplicate
-        let attempts = 0;
-        while (
-          generated &&
-          (!isNoteInDifficultyRange(generated, prevState.difficulty) || generated.midiNumber === avoidMidi) &&
-          attempts < 100
-        ) {
-          generated = getRandomKeyNote(prevState.difficulty.keyRoot, prevState.difficulty.keyMode, prevState.difficulty.clef, prevState.difficulty.includeAccidentals);
-          attempts++;
-        }
+        // Generate next melodic note based on the tail of the queue for continuity
+        const recentNotes = remaining.length >= 2
+          ? remaining.slice(-3)
+          : [...(prevState.currentNote ? [prevState.currentNote] : []), ...remaining];
+        const lastInQueue = remaining.length > 0
+          ? remaining[remaining.length - 1]
+          : nextFromQueue || prevState.currentNote;
+        const generated = lastInQueue
+          ? generateNextMelodicNote(prevState.difficulty, lastInQueue, recentNotes)
+          : null;
         nextNote = nextFromQueue || generated;
         nextQueue = [...remaining, generated].filter(Boolean) as Note[];
       } else {

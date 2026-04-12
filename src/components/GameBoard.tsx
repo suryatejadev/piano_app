@@ -234,6 +234,8 @@ export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins:
               feedbackMessage={gameState.state.feedbackMessage}
               lastPlayedNote={gameState.state.lastPlayedNote}
               showWrongNote={gameState.state.feedbackMessage.includes('Try again')}
+              keyRoot={gameState.state.difficulty.keyRoot}
+              keyMode={gameState.state.difficulty.keyMode}
             />
             </div>
 

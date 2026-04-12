@@ -18,56 +18,56 @@ function App() {
       <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 py-3">
           <div className="flex gap-2">
-            <button
-              onClick={() => setActiveTab('sight-reading')}
-              className={`px-4 py-2 rounded-md font-semibold transition ${
-                activeTab === 'sight-reading'
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-              }`}
-            >
-              Sight Reading
-            </button>
-            <button
-              onClick={() => setActiveTab('flash-cards')}
-              className={`px-4 py-2 rounded-md font-semibold transition ${
-                activeTab === 'flash-cards'
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-              }`}
-            >
-              Note Math
-            </button>
-            <button
-              onClick={() => setActiveTab('chords')}
-              className={`px-4 py-2 rounded-md font-semibold transition ${
-                activeTab === 'chords'
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-              }`}
-            >
-              Chords
-            </button>
-            <button
-              onClick={() => setActiveTab('ear-training')}
-              className={`px-4 py-2 rounded-md font-semibold transition ${
-                activeTab === 'ear-training'
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-              }`}
-            >
-              Ear Training
-            </button>
-            <button
-              onClick={() => setActiveTab('scales')}
-              className={`px-4 py-2 rounded-md font-semibold transition ${
-                activeTab === 'scales'
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-              }`}
-            >
-              Scales
-            </button>
+              <button
+                onClick={() => setActiveTab('sight-reading')}
+                className={`px-4 py-2 rounded-md font-semibold transition ${
+                  activeTab === 'sight-reading'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                }`}
+              >
+                Sight Reading
+              </button>
+              <button
+                onClick={() => setActiveTab('flash-cards')}
+                className={`px-4 py-2 rounded-md font-semibold transition ${
+                  activeTab === 'flash-cards'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                }`}
+              >
+                Note Math
+              </button>
+              <button
+                onClick={() => setActiveTab('chords')}
+                className={`px-4 py-2 rounded-md font-semibold transition ${
+                  activeTab === 'chords'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                }`}
+              >
+                Chords
+              </button>
+              <button
+                onClick={() => setActiveTab('ear-training')}
+                className={`px-4 py-2 rounded-md font-semibold transition ${
+                  activeTab === 'ear-training'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                }`}
+              >
+                Ear Training
+              </button>
+              <button
+                onClick={() => setActiveTab('scales')}
+                className={`px-4 py-2 rounded-md font-semibold transition ${
+                  activeTab === 'scales'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                }`}
+              >
+                Scales
+              </button>
           </div>
         </div>
       </div>
