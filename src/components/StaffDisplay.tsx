@@ -106,7 +106,7 @@ export const StaffDisplay: React.FC<StaffDisplayProps> = ({
           <g key="bass-clef" className="text-gray-800">
             <text
               x={clefX}
-              y={staffLines[1] + 26}
+              y={staffLines[1] + 30}
               fontSize="50"
               fontWeight="bold"
               fill="currentColor"
@@ -132,7 +132,7 @@ export const StaffDisplay: React.FC<StaffDisplayProps> = ({
             </text>
             <text
               x={clefX}
-              y={bassStaffLines[1] + 26}
+              y={bassStaffLines[1] + 30}
               fontSize="50"
               fontWeight="bold"
               fill="currentColor"
