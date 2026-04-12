@@ -84,6 +84,7 @@ export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins:
     gameState.state.gameActive,
     gameState.state.difficulty.clef,
     gameState.handleNotePlay,
+    showTimerDone,
   ]);
 
   // Update MIDI connection status in game state
