@@ -40,22 +40,6 @@ const DEFAULT_STATE: GameState = {
   feedbackMessage: '',
 };
 
-const isNoteInDifficultyRange = (note: Note, difficulty: Difficulty): boolean => {
-  if (difficulty.clef === Clef.TREBLE || difficulty.clef === Clef.ALTO) {
-    return note.midiNumber >= difficulty.trebleMinNoteNumber && note.midiNumber <= difficulty.trebleMaxNoteNumber;
-  }
-
-  if (difficulty.clef === Clef.BASS) {
-    return note.midiNumber >= difficulty.bassMinNoteNumber && note.midiNumber <= difficulty.bassMaxNoteNumber;
-  }
-
-  // Grand staff accepts notes in either treble or bass configured ranges.
-  return (
-    (note.midiNumber >= difficulty.trebleMinNoteNumber && note.midiNumber <= difficulty.trebleMaxNoteNumber) ||
-    (note.midiNumber >= difficulty.bassMinNoteNumber && note.midiNumber <= difficulty.bassMaxNoteNumber)
-  );
-};
-
 const buildNoteQueue = (difficulty: Difficulty, count = 10): Note[] => {
   return buildMelodicNoteQueue(difficulty, count);
 };
