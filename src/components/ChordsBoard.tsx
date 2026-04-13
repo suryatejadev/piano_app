@@ -235,7 +235,7 @@ export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
     setShowTimerDone(false);
   }, []);
 
-  const registerInput = useCallback((playedPitchClass: number, source: 'midi' | 'onscreen') => {
+  const registerInput = useCallback((playedPitchClass: number, _source: 'midi' | 'onscreen') => {
     if (timeUp) {
       if (showTimerDone) return;
       resetSession();
