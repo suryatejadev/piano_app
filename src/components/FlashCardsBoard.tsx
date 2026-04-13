@@ -9,6 +9,7 @@ import { KeyMode } from '../types';
 interface FlashCard {
   prompt: string;
   targetNote: string;
+  targetPitchClass: number;
 }
 
 interface FlashCardSettings {
@@ -28,6 +29,81 @@ const DEFAULT_SETTINGS: FlashCardSettings = {
 const CHROMATIC_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const NATURAL_NOTES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
+// Major scale intervals in semitones from root
+const MAJOR_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
+// Minor scale intervals in semitones from root (natural minor)
+const MINOR_SEMITONES = [0, 2, 3, 5, 7, 8, 10];
+
+// Weighted scale selection: important keys appear more often
+const WEIGHTED_SCALES: Array<{ root: string; mode: KeyMode; label: string; weight: number }> = [
+  { root: 'C', mode: KeyMode.MAJOR, label: 'C major', weight: 5 },
+  { root: 'G', mode: KeyMode.MAJOR, label: 'G major', weight: 4 },
+  { root: 'F', mode: KeyMode.MAJOR, label: 'F major', weight: 4 },
+  { root: 'D', mode: KeyMode.MAJOR, label: 'D major', weight: 3 },
+  { root: 'C', mode: KeyMode.MINOR, label: 'C minor', weight: 3 },
+];
+
+// Scale degrees to ask about (skip 1, it's obvious). Weight important degrees higher.
+const WEIGHTED_DEGREES: Array<{ degree: number; weight: number }> = [
+  { degree: 3, weight: 5 }, // most important — defines major/minor
+  { degree: 5, weight: 5 }, // dominant
+  { degree: 4, weight: 4 }, // subdominant
+  { degree: 7, weight: 3 }, // leading tone
+  { degree: 2, weight: 3 },
+  { degree: 6, weight: 3 },
+];
+
+// Common intervals for interval math questions
+const WEIGHTED_INTERVALS: Array<{ amount: number; weight: number }> = [
+  { amount: 1, weight: 3 },
+  { amount: 2, weight: 5 },
+  { amount: 3, weight: 5 },
+  { amount: 4, weight: 3 },
+  { amount: 5, weight: 3 },
+];
+
+function weightedPick<T>(items: Array<T & { weight: number }>): T {
+  const total = items.reduce((s, item) => s + item.weight, 0);
+  let r = Math.random() * total;
+  for (const item of items) {
+    r -= item.weight;
+    if (r <= 0) return item;
+  }
+  return items[0];
+}
+
+// Sharp-to-flat mapping
+const SHARP_TO_FLAT: Record<string, string> = {
+  'C#': 'Db', 'D#': 'Eb', 'F#': 'Gb', 'G#': 'Ab', 'A#': 'Bb',
+};
+
+// Keys that use flats in their spelling
+const FLAT_SCALE_ROOTS = new Set(['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb']);
+const FLAT_MINOR_ROOTS = new Set(['D', 'G', 'C', 'F', 'Bb', 'Eb', 'Ab']);
+
+function usesFlats(root: string, mode: KeyMode): boolean {
+  if (mode === KeyMode.MINOR) return FLAT_MINOR_ROOTS.has(root);
+  return FLAT_SCALE_ROOTS.has(root);
+}
+
+function noteNameFromPitchClass(pitchClass: number, preferFlat: boolean): string {
+  const pc = ((pitchClass % 12) + 12) % 12;
+  const name = CHROMATIC_NOTES[pc];
+  if (preferFlat && name in SHARP_TO_FLAT) {
+    return SHARP_TO_FLAT[name];
+  }
+  return name;
+}
+
+const pitchClassFromName = (name: string): number => {
+  // Handle flats by converting to sharp equivalent
+  const flatToSharp: Record<string, string> = {
+    'Db': 'C#', 'Eb': 'D#', 'Gb': 'F#', 'Ab': 'G#', 'Bb': 'A#',
+  };
+  const normalized = flatToSharp[name] || name;
+  return CHROMATIC_NOTES.indexOf(normalized);
+};
+
 const pitchClassLabel = (pitchClass: number): string => {
   return CHROMATIC_NOTES[((pitchClass % 12) + 12) % 12];
 };
@@ -45,8 +121,6 @@ const getAllowedRoots = (settings: FlashCardSettings): string[] => {
 };
 
 const generateFlashCard = (settings: FlashCardSettings): FlashCard => {
-  const roots = getAllowedRoots(settings);
-
   const allowedQuestionTypes: Array<'scale' | 'interval'> = [];
   if (settings.scaleMath) allowedQuestionTypes.push('scale');
   if (settings.intervals) allowedQuestionTypes.push('interval');
@@ -57,25 +131,37 @@ const generateFlashCard = (settings: FlashCardSettings): FlashCard => {
   const questionType = questionTypes[Math.floor(Math.random() * questionTypes.length)];
 
   if (questionType === 'scale') {
-    const root = roots[Math.floor(Math.random() * roots.length)];
-    const mode = Math.random() < 0.5 ? KeyMode.MAJOR : KeyMode.MINOR;
-    const degree = Math.floor(Math.random() * 7) + 1;
-    const targetNote = naturalStep(root, degree - 1);
+    const scale = weightedPick(WEIGHTED_SCALES);
+    const { degree } = weightedPick(WEIGHTED_DEGREES);
+    const rootPc = CHROMATIC_NOTES.indexOf(scale.root);
+    const semitones = scale.mode === KeyMode.MAJOR ? MAJOR_SEMITONES : MINOR_SEMITONES;
+    const targetPc = (rootPc + semitones[degree - 1]) % 12;
+    const preferFlat = usesFlats(scale.root, scale.mode);
+    const targetNote = noteNameFromPitchClass(targetPc, preferFlat);
+
+    const ordinal = degree === 2 ? '2nd' : degree === 3 ? '3rd' : `${degree}th`;
 
     return {
-      prompt: `${degree} of ${root} ${mode === KeyMode.MAJOR ? 'major' : 'minor'} is`,
+      prompt: `The ${ordinal} of ${scale.label}`,
       targetNote,
+      targetPitchClass: targetPc,
     };
   }
 
+  // Interval question: use only natural notes as base
+  const roots = getAllowedRoots(settings);
   const base = roots[Math.floor(Math.random() * roots.length)];
-  const amount = Math.floor(Math.random() * 4) + 1;
+  const { amount } = weightedPick(WEIGHTED_INTERVALS);
   const sign = Math.random() < 0.5 ? 1 : -1;
   const targetNote = naturalStep(base, sign * amount);
+  const interval = amount + 1; // music intervals are 1-indexed (step of 1 = a 2nd)
+  const intervalOrd = interval === 2 ? '2nd' : interval === 3 ? '3rd' : `${interval}th`;
+  const direction = sign > 0 ? 'above' : 'below';
 
   return {
-    prompt: `${base} ${sign > 0 ? '+' : '-'} ${amount} is`,
+    prompt: `A ${intervalOrd} ${direction} ${base}`,
     targetNote,
+    targetPitchClass: pitchClassFromName(targetNote),
   };
 };
 
@@ -124,10 +210,11 @@ export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: 
     }
 
     const playedLabel = pitchClassLabel(playedPitchClass);
+    const playedPc = ((playedPitchClass % 12) + 12) % 12;
 
-    if (playedLabel === card.targetNote) {
+    if (playedPc === card.targetPitchClass) {
       setCorrectCount(prev => prev + 1);
-      setFeedback(`Correct! ${playedLabel} is right.`);
+      setFeedback(`Correct! ${card.targetNote} is right.`);
       setTimeout(() => {
         setCard(generateFlashCard(settings));
         setFeedback('');
@@ -190,7 +277,7 @@ export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: 
     };
   }, [midi, handleAnswer]);
 
-  const onScreenKeys = getAllowedRoots(settings);
+  const onScreenKeys = CHROMATIC_NOTES;
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);

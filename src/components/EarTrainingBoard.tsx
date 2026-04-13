@@ -10,76 +10,56 @@ interface EarTrainingCard {
 }
 
 interface EarTrainingSettings {
-  naturals: boolean;
   accidentals: boolean;
-  minRootMidi: number;
-  maxRootMidi: number;
 }
 
 const CHROMATIC_LABELS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const NATURAL_PITCH_CLASSES = [0, 2, 4, 5, 7, 9, 11];
-const ROOT_RANGE_OPTIONS = Array.from({ length: (83 - 48) + 1 }, (_, i) => 48 + i); // C3..B5
 
 const DEFAULT_SETTINGS: EarTrainingSettings = {
-  naturals: true,
   accidentals: false,
-  minRootMidi: 60, // C4
-  maxRootMidi: 71, // B4
 };
 
 const pitchClassLabel = (pitchClass: number): string => {
   return CHROMATIC_LABELS[((pitchClass % 12) + 12) % 12];
 };
 
-const midiLabel = (midi: number): string => {
-  const label = pitchClassLabel(midi % 12);
-  const octave = Math.floor(midi / 12) - 1;
-  return `${label}${octave}`;
-};
-
 const getAllowedPitchClasses = (settings: EarTrainingSettings): number[] => {
-  const allowed = new Set<number>();
-
-  if (settings.naturals) {
-    NATURAL_PITCH_CLASSES.forEach(pc => allowed.add(pc));
-  }
-
+  const allowed = [...NATURAL_PITCH_CLASSES];
   if (settings.accidentals) {
     for (let pc = 0; pc < 12; pc += 1) {
       if (!NATURAL_PITCH_CLASSES.includes(pc)) {
-        allowed.add(pc);
+        allowed.push(pc);
       }
     }
   }
-
-  // Fallback to naturals if user turns both off.
-  if (allowed.size === 0) {
-    NATURAL_PITCH_CLASSES.forEach(pc => allowed.add(pc));
-  }
-
-  return Array.from(allowed).sort((a, b) => a - b);
+  return allowed.sort((a, b) => a - b);
 };
 
-const getRootCandidates = (settings: EarTrainingSettings): number[] => {
-  const allowedPitchClasses = getAllowedPitchClasses(settings);
+const getRootCandidates = (): number[] => {
   const roots: number[] = [];
-
-  for (let midi = settings.minRootMidi; midi <= settings.maxRootMidi; midi += 1) {
-    if (allowedPitchClasses.includes(midi % 12)) {
+  for (let midi = 60; midi <= 71; midi += 1) {
+    if (NATURAL_PITCH_CLASSES.includes(midi % 12)) {
       roots.push(midi);
     }
   }
-
   return roots;
+};
+
+const getMaxInterval = (progressPct: number): number => {
+  if (progressPct < 0.25) return 2;
+  if (progressPct < 0.50) return 4;
+  if (progressPct < 0.75) return 7;
+  return 11;
 };
 
 const midiToFrequency = (midi: number): number => {
   return 440 * Math.pow(2, (midi - 69) / 12);
 };
 
-const createCard = (settings: EarTrainingSettings, fixedRootMidi?: number): EarTrainingCard => {
-  const rootCandidates = getRootCandidates(settings);
-  const fallbackRoot = settings.minRootMidi;
+const createCard = (settings: EarTrainingSettings, maxInterval: number, fixedRootMidi?: number): EarTrainingCard => {
+  const rootCandidates = getRootCandidates();
+  const fallbackRoot = 60;
   const selectedRootMidi =
     fixedRootMidi && rootCandidates.includes(fixedRootMidi)
       ? fixedRootMidi
@@ -88,7 +68,12 @@ const createCard = (settings: EarTrainingSettings, fixedRootMidi?: number): EarT
   const rootPitchClass = selectedRootMidi % 12;
 
   const allowedPitchClasses = getAllowedPitchClasses(settings);
-  const targetCandidates = allowedPitchClasses.filter(pc => pc !== rootPitchClass);
+  const targetCandidates = allowedPitchClasses.filter(pc => {
+    if (pc === rootPitchClass) return false;
+    const up = ((pc - rootPitchClass) + 12) % 12;
+    const down = ((rootPitchClass - pc) + 12) % 12;
+    return Math.min(up, down) <= maxInterval;
+  });
   const targetPitchClass =
     targetCandidates[Math.floor(Math.random() * targetCandidates.length)] ?? rootPitchClass;
 
@@ -109,7 +94,7 @@ export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes:
 }) => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<EarTrainingSettings>(DEFAULT_SETTINGS);
-  const [card, setCard] = useState<EarTrainingCard>(() => createCard(DEFAULT_SETTINGS));
+  const [card, setCard] = useState<EarTrainingCard>(() => createCard(DEFAULT_SETTINGS, 2));
   const [feedback, setFeedback] = useState('');
   const [correctCount, setCorrectCount] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
@@ -122,6 +107,8 @@ export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes:
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const roundDurationSeconds = timerMinutes * 60;
+  const progressPct = roundDurationSeconds > 0 ? elapsedSeconds / roundDurationSeconds : 1;
+  const maxInterval = getMaxInterval(progressPct);
 
   const totalCount = useMemo(() => correctCount + wrongCount, [correctCount, wrongCount]);
 
@@ -188,10 +175,10 @@ export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes:
 
   const nextExercise = useCallback(() => {
     if (timeUp) return;
-    setCard(createCard(settings));
+    setCard(createCard(settings, maxInterval));
     setSequenceProgress(0);
     setFeedback('');
-  }, [timeUp, settings]);
+  }, [timeUp, settings, maxInterval]);
 
   useEffect(() => {
     if (timeUp || !hasStarted) return;
@@ -239,7 +226,7 @@ export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes:
       setShowTimerDone(false);
       setSequenceProgress(0);
       setFeedback('');
-      setCard(createCard(settings));
+      setCard(createCard(settings, 2));
       setHasStarted(true);
       return;
     }
@@ -248,7 +235,7 @@ export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes:
       setHasStarted(true);
     }
 
-    const expectedSequence = [card.rootPitchClass, card.targetPitchClass, card.rootPitchClass];
+    const expectedSequence = [card.rootPitchClass, card.targetPitchClass];
     const expected = expectedSequence[sequenceProgress];
 
     const selectedPitchClass = degree - 1;
@@ -256,28 +243,29 @@ export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes:
     if (selectedPitchClass === expected) {
       const nextProgress = sequenceProgress + 1;
       if (nextProgress >= expectedSequence.length) {
-        const nextCard = createCard(settings, card.rootMidi);
+        const nextCard = createCard(settings, maxInterval, card.rootMidi);
         setCorrectCount(prev => prev + 1);
-        setFeedback('Correct sequence! Playing next...');
+        setFeedback('Correct! Playing next...');
         // Keep same root, generate a new interval.
         setCard(nextCard);
         setSequenceProgress(0);
         void playCardSequence(nextCard);
       } else {
         setSequenceProgress(nextProgress);
-        setFeedback(`Good. ${nextProgress}/3 notes matched.`);
+        setFeedback(`Good. ${nextProgress}/2 notes matched.`);
       }
     } else {
       setWrongCount(prev => prev + 1);
       setSequenceProgress(0);
       setFeedback('Incorrect. Restart sequence.');
     }
-  }, [timeUp, showTimerDone, hasStarted, card, sequenceProgress, settings, playCardSequence]);
+  }, [timeUp, showTimerDone, hasStarted, card, sequenceProgress, settings, maxInterval, playCardSequence]);
 
   useEffect(() => {
-    setCard(prev => createCard(settings, prev.rootMidi));
+    setCard(prev => createCard(settings, maxInterval, prev.rootMidi));
     setSequenceProgress(0);
     setFeedback('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings]);
 
   useEffect(() => {
@@ -341,71 +329,16 @@ export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes:
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
-                checked={settings.naturals}
-                onChange={e => setSettings(prev => ({ ...prev, naturals: e.target.checked }))}
-                className="w-5 h-5 rounded"
-              />
-              <span className="text-sm font-medium text-gray-700">Naturals</span>
-            </label>
-
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
                 checked={settings.accidentals}
                 onChange={e => setSettings(prev => ({ ...prev, accidentals: e.target.checked }))}
                 className="w-5 h-5 rounded"
               />
-              <span className="text-sm font-medium text-gray-700">Accidentals</span>
+              <span className="text-sm font-medium text-gray-700">Include Accidentals</span>
             </label>
 
-            <div className="pt-2 border-t border-gray-200">
-              <h3 className="text-sm font-semibold text-gray-800 mb-2">Root Note Range</h3>
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <label className="w-12 text-sm text-gray-600">Min</label>
-                  <select
-                    value={settings.minRootMidi}
-                    onChange={e => {
-                      const min = parseInt(e.target.value, 10);
-                      setSettings(prev => ({
-                        ...prev,
-                        minRootMidi: min,
-                        maxRootMidi: Math.max(min, prev.maxRootMidi),
-                      }));
-                    }}
-                    className="flex-1 rounded border border-gray-300 bg-white px-2 py-2 text-sm text-gray-800"
-                  >
-                    {ROOT_RANGE_OPTIONS.map(midi => (
-                      <option key={`min-${midi}`} value={midi}>
-                        {midiLabel(midi)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <label className="w-12 text-sm text-gray-600">Max</label>
-                  <select
-                    value={settings.maxRootMidi}
-                    onChange={e => {
-                      const max = parseInt(e.target.value, 10);
-                      setSettings(prev => ({
-                        ...prev,
-                        minRootMidi: Math.min(prev.minRootMidi, max),
-                        maxRootMidi: max,
-                      }));
-                    }}
-                    className="flex-1 rounded border border-gray-300 bg-white px-2 py-2 text-sm text-gray-800"
-                  >
-                    {ROOT_RANGE_OPTIONS.map(midi => (
-                      <option key={`max-${midi}`} value={midi}>
-                        {midiLabel(midi)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
+            <p className="text-xs text-gray-500">
+              Roots are always natural notes (C4–B4). Intervals widen as time passes.
+            </p>
 
             <button
               onClick={() => setSettings(DEFAULT_SETTINGS)}
@@ -471,7 +404,7 @@ export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes:
           <div className="text-center mb-8">
             <div className="text-3xl font-bold text-gray-800">Play Back The Pattern</div>
             <div className="text-sm text-gray-500 mt-2">
-              Listen to note-note-note, then enter the same 3 notes in order.
+              Listen to 3 notes, then enter the first 2 in order. Intervals widen over time.
             </div>
           </div>
 
