@@ -8,6 +8,7 @@ export interface SessionRecord {
 }
 
 export const saveSession = async (userId: string, record: SessionRecord): Promise<void> => {
+  if (!supabase) return;
   const { error } = await supabase.from('practice_sessions').insert({
     user_id: userId,
     section: record.section,
@@ -28,6 +29,7 @@ export const getPracticeHeatmap = async (userId: string): Promise<DayActivity[]>
   since.setFullYear(since.getFullYear() - 1);
   const sinceStr = since.toISOString().split('T')[0];
 
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from('practice_sessions')
     .select('practiced_at')
@@ -59,6 +61,7 @@ export const getSectionStats = async (
   section: string,
   range: 'month' | 'all',
 ): Promise<DailyStats[]> => {
+  if (!supabase) return [];
   let query = supabase
     .from('practice_sessions')
     .select('practiced_at, correct_count, wrong_count')

@@ -14,9 +14,10 @@ export interface UseAuthReturn {
 export const useAuth = (): UseAuthReturn => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!supabase ? false : true);
 
   useEffect(() => {
+    if (!supabase) return;
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
       setUser(s?.user ?? null);
@@ -32,16 +33,19 @@ export const useAuth = (): UseAuthReturn => {
   }, []);
 
   const signUp = useCallback(async (email: string, password: string): Promise<string | null> => {
+    if (!supabase) return 'Supabase not configured';
     const { error } = await supabase.auth.signUp({ email, password });
     return error?.message ?? null;
   }, []);
 
   const signIn = useCallback(async (email: string, password: string): Promise<string | null> => {
+    if (!supabase) return 'Supabase not configured';
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return error?.message ?? null;
   }, []);
 
   const signOut = useCallback(async () => {
+    if (!supabase) return;
     await supabase.auth.signOut();
   }, []);
 
