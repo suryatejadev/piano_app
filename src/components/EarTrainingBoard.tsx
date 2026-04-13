@@ -88,9 +88,10 @@ const createCard = (settings: EarTrainingSettings, maxInterval: number, fixedRoo
   };
 };
 
-export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void }> = ({
+export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void; onSessionComplete?: (r: { section: string; correct_count: number; wrong_count: number; duration_seconds: number }) => void }> = ({
   timerMinutes,
   setTimerMinutes,
+  onSessionComplete,
 }) => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<EarTrainingSettings>(DEFAULT_SETTINGS);
@@ -201,6 +202,7 @@ export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes:
   useEffect(() => {
     if (!timeUp) return;
     setShowTimerDone(true);
+    onSessionComplete?.({ section: 'ear-training', correct_count: correctCount, wrong_count: wrongCount, duration_seconds: elapsedSeconds });
   }, [timeUp]);
 
   const handleDismissTimerDone = useCallback(() => {

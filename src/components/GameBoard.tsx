@@ -14,10 +14,11 @@ import type { UseMidiReturn } from '../hooks/useMidi';
 /**
  * Main game board component that orchestrates all game components
  */
-export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void; midi: UseMidiReturn }> = ({
+export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void; midi: UseMidiReturn; onSessionComplete?: (r: { section: string; correct_count: number; wrong_count: number; duration_seconds: number }) => void }> = ({
   timerMinutes,
   setTimerMinutes,
   midi,
+  onSessionComplete,
 }) => {
   const gameState = useGameState();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -118,7 +119,13 @@ export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins:
 
     hasTriggeredAutoResetRef.current = true;
     setShowTimerDone(true);
-  }, [gameState.state.gameActive, gameState.state.stats.elapsedSeconds, timerMinutes]);
+    onSessionComplete?.({
+      section: 'sight-reading',
+      correct_count: gameState.state.stats.correctHits,
+      wrong_count: gameState.state.stats.totalNotes - gameState.state.stats.correctHits,
+      duration_seconds: gameState.state.stats.elapsedSeconds,
+    });
+  }, [gameState.state.gameActive, gameState.state.stats.elapsedSeconds, timerMinutes, onSessionComplete, gameState.state.stats.correctHits, gameState.state.stats.totalNotes]);
 
   const handleDismissTimerDone = useCallback(() => {
     setShowTimerDone(false);

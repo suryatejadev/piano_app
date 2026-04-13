@@ -6,29 +6,42 @@ import type { UseMidiReturn } from '../hooks/useMidi';
 
 interface ScaleCard {
   rootNote: string;
-  mode: 'Major' | 'Minor';
+  mode: 'Major' | 'Minor' | 'Major Pentatonic' | 'Minor Pentatonic' | 'Major Chord' | 'Minor Chord';
   hand: 'left' | 'right' | 'both';
   octaves: 1 | 2;
 }
 
 const ROOTS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-const MODES = ['Major', 'Minor'] as const;
+const MODES = ['Major', 'Minor', 'Major Pentatonic', 'Minor Pentatonic'] as const;
+const CHORD_MODES = ['Major Chord', 'Minor Chord'] as const;
 const HANDS = ['left', 'right', 'both'] as const;
 const OCTAVES = [1, 2] as const;
 
 const createScaleCard = (): ScaleCard => {
+  // ~25% chance of a chord card
+  if (Math.random() < 0.25) {
+    return {
+      rootNote: ROOTS[Math.floor(Math.random() * ROOTS.length)],
+      mode: CHORD_MODES[Math.floor(Math.random() * CHORD_MODES.length)],
+      hand: 'both',
+      octaves: 1,
+    };
+  }
+  const mode = MODES[Math.floor(Math.random() * MODES.length)];
+  const isPentatonic = mode.includes('Pentatonic');
   return {
     rootNote: ROOTS[Math.floor(Math.random() * ROOTS.length)],
-    mode: MODES[Math.floor(Math.random() * MODES.length)],
+    mode,
     hand: HANDS[Math.floor(Math.random() * HANDS.length)],
-    octaves: OCTAVES[Math.floor(Math.random() * OCTAVES.length)],
+    octaves: isPentatonic ? 1 : OCTAVES[Math.floor(Math.random() * OCTAVES.length)],
   };
 };
 
-export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void; midi: UseMidiReturn }> = ({
+export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void; midi: UseMidiReturn; onSessionComplete?: (r: { section: string; correct_count: number; wrong_count: number; duration_seconds: number }) => void }> = ({
   timerMinutes,
   setTimerMinutes,
   midi,
+  onSessionComplete,
 }) => {
   const [card, setCard] = useState<ScaleCard>(() => createScaleCard());
   const [scalesCompleted, setScalesCompleted] = useState(0);
@@ -43,7 +56,7 @@ export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
 
   const totalCount = useMemo(() => scalesCompleted, [scalesCompleted]);
 
-  // Listen for C1 (MIDI 36) to advance to next scale
+  // Listen for C1 (MIDI 24) to advance to next scale
   useEffect(() => {
     const callback = (event: MidiNoteEvent) => {
       if (timeUp) {
@@ -64,7 +77,7 @@ export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
       }
 
       // C1 advances to next scale card.
-      if (event.noteNumber === 36) {
+      if (event.noteNumber === 24) {
         setScalesCompleted(prev => prev + 1);
         setCard(createScaleCard());
         setFeedback('');
@@ -84,6 +97,7 @@ export const ScalesBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
   useEffect(() => {
     if (!timeUp) return;
     setShowTimerDone(true);
+    onSessionComplete?.({ section: 'scales', correct_count: scalesCompleted, wrong_count: 0, duration_seconds: elapsedSeconds });
   }, [timeUp]);
 
   const handleDismissTimerDone = useCallback(() => {

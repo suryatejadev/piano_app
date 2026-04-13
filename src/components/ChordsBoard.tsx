@@ -2,38 +2,34 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MidiConnectionStatus } from './MidiConnectionStatus';
 import { TimerDoneOverlay } from './TimerDoneOverlay';
 import { SharedTimerControl } from './SharedTimerControl';
-import { getStaffPosition } from '../utils/midiNoteMap';
 import type { MidiNoteEvent } from '../types';
 import type { UseMidiReturn } from '../hooks/useMidi';
-import { Clef } from '../types';
 
-type ChordQuality = 'major' | 'minor';
-type ChordQuestionType = 'play' | 'identify';
+type ChordQuality = 'major' | 'minor' | 'dom7' | 'maj7';
+type CardType = 'major' | 'minor' | 'dom7' | 'maj7' | 'ii-V-I';
+
+interface ProgressionStep {
+  chordName: string;
+  pitchClasses: number[];
+}
 
 interface ChordCard {
-  type: ChordQuestionType;
   root: string;
   quality: ChordQuality;
   chordName: string;
   pitchClasses: number[];
   displayMidis: number[];
   prompt: string;
-  options?: string[];
+  progression?: ProgressionStep[];
 }
 
 interface ChordsSettings {
-  naturals: boolean;
   accidentals: boolean;
-  playMode: boolean;
-  identifyMode: boolean;
   showOnScreenKeyboard: boolean;
 }
 
 const DEFAULT_SETTINGS: ChordsSettings = {
-  naturals: true,
   accidentals: false,
-  playMode: true,
-  identifyMode: true,
   showOnScreenKeyboard: true,
 };
 
@@ -45,166 +41,127 @@ const pitchClassLabel = (pitchClass: number): string => {
   return CHROMATIC_NOTES[((pitchClass % 12) + 12) % 12];
 };
 
-const chordLabel = (root: string, quality: ChordQuality): string => `${root} ${quality}`;
-
-const shuffle = <T,>(items: T[]): T[] => {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
+const chordLabel = (root: string, quality: ChordQuality): string => {
+  switch (quality) {
+    case 'major': return `${root} major`;
+    case 'minor': return `${root} minor`;
+    case 'dom7': return `${root}7`;
+    case 'maj7': return `${root}maj7`;
   }
-  return copy;
 };
 
+const WEIGHTED_CARD_TYPES: Array<{ type: CardType; weight: number }> = [
+  { type: 'major', weight: 5 },
+  { type: 'minor', weight: 5 },
+  { type: 'ii-V-I', weight: 3 },
+  { type: 'dom7', weight: 2 },
+  { type: 'maj7', weight: 2 },
+];
+
+function weightedPickCardType(): CardType {
+  const total = WEIGHTED_CARD_TYPES.reduce((s, q) => s + q.weight, 0);
+  let r = Math.random() * total;
+  for (const q of WEIGHTED_CARD_TYPES) {
+    r -= q.weight;
+    if (r <= 0) return q.type;
+  }
+  return 'major';
+}
+
 const getAllowedRoots = (settings: ChordsSettings): string[] => {
-  const roots: string[] = [];
-  if (settings.naturals) roots.push(...NATURAL_NOTES);
+  const roots = [...NATURAL_NOTES];
   if (settings.accidentals) roots.push(...ACCIDENTAL_NOTES);
-  return roots.length > 0 ? roots : [...CHROMATIC_NOTES];
+  return roots;
 };
 
 const createChordPitchClasses = (rootPitchClass: number, quality: ChordQuality): number[] => {
-  const third = quality === 'major' ? 4 : 3;
-  return [
-    rootPitchClass,
-    (rootPitchClass + third) % 12,
-    (rootPitchClass + 7) % 12,
-  ];
+  switch (quality) {
+    case 'major':
+      return [rootPitchClass, (rootPitchClass + 4) % 12, (rootPitchClass + 7) % 12];
+    case 'minor':
+      return [rootPitchClass, (rootPitchClass + 3) % 12, (rootPitchClass + 7) % 12];
+    case 'dom7':
+      return [rootPitchClass, (rootPitchClass + 4) % 12, (rootPitchClass + 7) % 12, (rootPitchClass + 10) % 12];
+    case 'maj7':
+      return [rootPitchClass, (rootPitchClass + 4) % 12, (rootPitchClass + 7) % 12, (rootPitchClass + 11) % 12];
+  }
 };
 
 const createDisplayMidis = (rootPitchClass: number, quality: ChordQuality): number[] => {
   const rootMidi = 60 + rootPitchClass;
-  const third = quality === 'major' ? 4 : 3;
-  return [rootMidi, rootMidi + third, rootMidi + 7];
+  switch (quality) {
+    case 'major':
+      return [rootMidi, rootMidi + 4, rootMidi + 7];
+    case 'minor':
+      return [rootMidi, rootMidi + 3, rootMidi + 7];
+    case 'dom7':
+      return [rootMidi, rootMidi + 4, rootMidi + 7, rootMidi + 10];
+    case 'maj7':
+      return [rootMidi, rootMidi + 4, rootMidi + 7, rootMidi + 11];
+  }
 };
 
-const generateChordCard = (settings: ChordsSettings): ChordCard => {
+const generateChordCard = (settings: ChordsSettings, prevChordName?: string): ChordCard => {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const card = generateChordCardInner(settings);
+    if (card.chordName !== prevChordName || attempt === 9) return card;
+  }
+  return generateChordCardInner(settings);
+};
+
+const generateChordCardInner = (settings: ChordsSettings): ChordCard => {
   const roots = getAllowedRoots(settings);
-  const types: ChordQuestionType[] = [];
-  if (settings.playMode) types.push('play');
-  if (settings.identifyMode) types.push('identify');
-  const questionTypes = types.length > 0 ? types : (['play', 'identify'] as ChordQuestionType[]);
+  const cardType = weightedPickCardType();
+
+  if (cardType === 'ii-V-I') {
+    // Pick the "I" root, build ii-V-I triads
+    const iRoot = roots[Math.floor(Math.random() * roots.length)];
+    const iRootPc = CHROMATIC_NOTES.indexOf(iRoot);
+    const iiRootPc = (iRootPc + 2) % 12;
+    const vRootPc = (iRootPc + 7) % 12;
+    const iiName = `${CHROMATIC_NOTES[iiRootPc]}m`;
+    const vName = CHROMATIC_NOTES[vRootPc];
+    const iName = iRoot;
+
+    const progression: ProgressionStep[] = [
+      { chordName: iiName, pitchClasses: createChordPitchClasses(iiRootPc, 'minor') },
+      { chordName: vName, pitchClasses: createChordPitchClasses(vRootPc, 'major') },
+      { chordName: iName, pitchClasses: createChordPitchClasses(iRootPc, 'major') },
+    ];
+
+    return {
+      root: iRoot,
+      quality: 'major',
+      chordName: `ii-V-I in ${iRoot}`,
+      pitchClasses: progression[0].pitchClasses,
+      displayMidis: [],
+      prompt: `ii-V-I in ${iRoot}`,
+      progression,
+    };
+  }
 
   const root = roots[Math.floor(Math.random() * roots.length)];
-  const quality: ChordQuality = Math.random() < 0.5 ? 'major' : 'minor';
-  const type = questionTypes[Math.floor(Math.random() * questionTypes.length)];
+  const quality = cardType as ChordQuality;
   const rootPitchClass = CHROMATIC_NOTES.indexOf(root);
   const pitchClasses = createChordPitchClasses(rootPitchClass, quality);
   const displayMidis = createDisplayMidis(rootPitchClass, quality);
   const name = chordLabel(root, quality);
 
-  if (type === 'play') {
-    return {
-      type,
-      root,
-      quality,
-      chordName: name,
-      pitchClasses,
-      displayMidis,
-      prompt: `Play ${root} ${quality}`,
-    };
-  }
-
-  const allChoices = roots.flatMap(r => [
-    chordLabel(r, 'major'),
-    chordLabel(r, 'minor'),
-  ]);
-
-  const distractors = shuffle(allChoices.filter(choice => choice !== name)).slice(0, 9);
-  const options = shuffle([name, ...distractors]);
-
   return {
-    type,
     root,
     quality,
     chordName: name,
     pitchClasses,
     displayMidis,
-    prompt: 'Identify this chord from the staff',
-    options,
+    prompt: `Play ${name}`,
   };
 };
 
-const renderChordStaff = (midis: number[]) => {
-  const STAFF_WIDTH = 700;
-  const STAFF_HEIGHT = 220;
-  const MARGIN = 40;
-  const LINE_SPACING = 24;
-  const STAFF_TOP = MARGIN + 30;
-  const staffLines = [0, 1, 2, 3, 4].map(i => STAFF_TOP + i * LINE_SPACING);
-  const NOTE_X = STAFF_WIDTH / 2;
-
-  const noteY = (staffPosition: number) => {
-    const lineYIndex = 4 - staffPosition / 2;
-    return STAFF_TOP + lineYIndex * LINE_SPACING;
-  };
-
-  return (
-    <svg
-      viewBox={`0 0 ${STAFF_WIDTH} ${STAFF_HEIGHT}`}
-      width="100%"
-      className="w-full h-[250px] border border-gray-200 rounded"
-    >
-      {staffLines.map((y, i) => (
-        <line
-          key={`staff-line-${i}`}
-          x1={MARGIN}
-          y1={y}
-          x2={STAFF_WIDTH - MARGIN}
-          y2={y}
-          stroke="black"
-          strokeWidth="1.5"
-        />
-      ))}
-
-      <line
-        x1={MARGIN}
-        y1={staffLines[0]}
-        x2={MARGIN}
-        y2={staffLines[4]}
-        stroke="black"
-        strokeWidth="2"
-      />
-      <line
-        x1={STAFF_WIDTH - MARGIN}
-        y1={staffLines[0]}
-        x2={STAFF_WIDTH - MARGIN}
-        y2={staffLines[4]}
-        stroke="black"
-        strokeWidth="2"
-      />
-
-      <text
-        x={MARGIN + 30}
-        y={staffLines[3] + 8}
-        fontSize="60"
-        fontWeight="bold"
-        fill="#111827"
-        textAnchor="middle"
-      >
-        𝄞
-      </text>
-
-      {midis.map((midi, idx) => {
-        const pos = getStaffPosition(midi, Clef.TREBLE) ?? 0;
-        const y = noteY(pos);
-        const x = NOTE_X + (idx - 1) * 20;
-
-        return (
-          <g key={`chord-note-${midi}-${idx}`}>
-            <ellipse cx={x} cy={y} rx="10" ry="12" fill="#111827" stroke="#111827" strokeWidth="1" />
-            <line x1={x + 10} y1={y} x2={x + 10} y2={y - 35} stroke="#111827" strokeWidth="2" />
-          </g>
-        );
-      })}
-    </svg>
-  );
-};
-
-export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void; midi: UseMidiReturn }> = ({
+export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void; midi: UseMidiReturn; onSessionComplete?: (r: { section: string; correct_count: number; wrong_count: number; duration_seconds: number }) => void }> = ({
   timerMinutes,
   setTimerMinutes,
   midi,
+  onSessionComplete,
 }) => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<ChordsSettings>(DEFAULT_SETTINGS);
@@ -218,6 +175,7 @@ export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
   const [showTimerDone, setShowTimerDone] = useState(false);
   const unsubscribeMidiRef = useRef<(() => void) | null>(null);
   const attemptedPitchClassesRef = useRef<Set<number>>(new Set());
+  const [progressionStep, setProgressionStep] = useState(0);
 
   const roundDurationSeconds = timerMinutes * 60;
 
@@ -229,21 +187,24 @@ export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
     setTimeUp(false);
     setShowTimerDone(false);
     setFeedback('');
-    setCard(generateChordCard(settings));
+    setCard(prev => generateChordCard(settings, prev.chordName));
     attemptedPitchClassesRef.current.clear();
+    setProgressionStep(0);
   }, [settings]);
 
   const nextCard = useCallback(() => {
     if (timeUp) return;
-    setCard(generateChordCard(settings));
+    setCard(prev => generateChordCard(settings, prev.chordName));
     setFeedback('');
     attemptedPitchClassesRef.current.clear();
+    setProgressionStep(0);
   }, [settings, timeUp]);
 
   useEffect(() => {
-    setCard(generateChordCard(settings));
+    setCard(prev => generateChordCard(settings, prev.chordName));
     setFeedback('');
     attemptedPitchClassesRef.current.clear();
+    setProgressionStep(0);
   }, [settings]);
 
   useEffect(() => {
@@ -267,6 +228,7 @@ export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
   useEffect(() => {
     if (!timeUp) return;
     setShowTimerDone(true);
+    onSessionComplete?.({ section: 'chords', correct_count: correctCount, wrong_count: wrongCount, duration_seconds: elapsedSeconds });
   }, [timeUp]);
 
   const handleDismissTimerDone = useCallback(() => {
@@ -275,17 +237,9 @@ export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
 
   const registerInput = useCallback((playedPitchClass: number, source: 'midi' | 'onscreen') => {
     if (timeUp) {
-      if (showTimerDone) return; // block input during the 3s overlay window
-      // overlay dismissed: reset and start fresh
+      if (showTimerDone) return;
       resetSession();
       setHasStarted(true);
-      return;
-    }
-
-    if (card.type === 'identify') {
-      if (source === 'midi') {
-        setFeedback('Use the chord options below for this question.');
-      }
       return;
     }
 
@@ -293,55 +247,50 @@ export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
       setHasStarted(true);
     }
 
-    if (card.pitchClasses.includes(playedPitchClass)) {
+    // Determine which pitch classes to check against
+    const currentPitchClasses = card.progression
+      ? card.progression[progressionStep].pitchClasses
+      : card.pitchClasses;
+    const currentChordName = card.progression
+      ? card.progression[progressionStep].chordName
+      : card.chordName;
+
+    if (currentPitchClasses.includes(playedPitchClass)) {
       attemptedPitchClassesRef.current.add(playedPitchClass);
       const nextCount = attemptedPitchClassesRef.current.size;
 
-      if (nextCount >= card.pitchClasses.length) {
-        setCorrectCount(c => c + 1);
-        setFeedback('Correct!');
+      if (nextCount >= currentPitchClasses.length) {
         attemptedPitchClassesRef.current.clear();
-        setTimeout(() => {
-          setCard(generateChordCard(settings));
-          setFeedback('');
-        }, 500);
+
+        if (card.progression && progressionStep < card.progression.length - 1) {
+          // Advance to next chord in progression
+          const nextStep = progressionStep + 1;
+          setProgressionStep(nextStep);
+          setFeedback(`${currentChordName} done! Now play ${card.progression[nextStep].chordName}`);
+        } else {
+          // Single chord complete, or final progression step
+          setCorrectCount(c => c + 1);
+          setFeedback('Correct!');
+          setTimeout(() => {
+            setCard(prev => generateChordCard(settings, prev.chordName));
+            setProgressionStep(0);
+            setFeedback('');
+          }, 500);
+        }
       } else {
-        setFeedback(`Good. ${nextCount}/${card.pitchClasses.length} notes entered.`);
+        setFeedback(`Good. ${nextCount}/${currentPitchClasses.length} notes entered.`);
       }
     } else {
       setWrongCount(w => w + 1);
       attemptedPitchClassesRef.current.clear();
-      setFeedback(`Incorrect: ${pitchClassLabel(playedPitchClass)} is not in the chord.`);
+      if (card.progression) {
+        setProgressionStep(0);
+        setFeedback(`Incorrect: ${pitchClassLabel(playedPitchClass)} is not in ${currentChordName}. Restart from ${card.progression[0].chordName}.`);
+      } else {
+        setFeedback(`Incorrect: ${pitchClassLabel(playedPitchClass)} is not in the chord.`);
+      }
     }
-  }, [timeUp, card, hasStarted, settings]);
-
-  const handleIdentifyChoice = (choice: string) => {
-    if (card.type !== 'identify') return;
-
-    if (timeUp) {
-      if (showTimerDone) return; // block input during the 3s overlay window
-      // overlay dismissed: reset and start fresh
-      resetSession();
-      setHasStarted(true);
-      return;
-    }
-
-    if (!hasStarted) {
-      setHasStarted(true);
-    }
-
-    if (choice === card.chordName) {
-      setCorrectCount(c => c + 1);
-      setFeedback(`Correct! ${choice}`);
-      setTimeout(() => {
-        setCard(generateChordCard(settings));
-        setFeedback('');
-      }, 500);
-    } else {
-      setWrongCount(w => w + 1);
-      setFeedback(`Incorrect: ${choice}`);
-    }
-  };
+  }, [timeUp, card, hasStarted, settings, showTimerDone, resetSession, progressionStep]);
 
   useEffect(() => {
     const callback = (event: MidiNoteEvent) => {
@@ -396,41 +345,11 @@ export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
-                checked={settings.naturals}
-                onChange={e => setSettings(prev => ({ ...prev, naturals: e.target.checked }))}
-                className="w-5 h-5 rounded"
-              />
-              <span className="text-sm font-medium text-gray-700">Naturals</span>
-            </label>
-
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
                 checked={settings.accidentals}
                 onChange={e => setSettings(prev => ({ ...prev, accidentals: e.target.checked }))}
                 className="w-5 h-5 rounded"
               />
-              <span className="text-sm font-medium text-gray-700">Accidentals</span>
-            </label>
-
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.playMode}
-                onChange={e => setSettings(prev => ({ ...prev, playMode: e.target.checked }))}
-                className="w-5 h-5 rounded"
-              />
-              <span className="text-sm font-medium text-gray-700">Play Chord</span>
-            </label>
-
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.identifyMode}
-                onChange={e => setSettings(prev => ({ ...prev, identifyMode: e.target.checked }))}
-                className="w-5 h-5 rounded"
-              />
-              <span className="text-sm font-medium text-gray-700">Identify from Sheet</span>
+              <span className="text-sm font-medium text-gray-700">Include Accidentals</span>
             </label>
 
             <label className="flex items-center gap-3 cursor-pointer">
@@ -519,29 +438,8 @@ export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
         <div className="bg-white rounded-lg border border-gray-300 p-8 shadow-sm">
           <div className="text-center mb-6">
             <div className="text-3xl font-bold text-gray-800">{card.prompt}</div>
-            {card.type === 'play' && (
-              <div className="text-sm text-gray-500 mt-2">Enter all chord tones</div>
-            )}
+            <div className="text-sm text-gray-500 mt-2">Enter all chord tones</div>
           </div>
-
-          {card.type === 'identify' && (
-            <div className="mb-8 space-y-4">
-              {renderChordStaff(card.displayMidis)}
-
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                {(card.options ?? []).map(option => (
-                  <button
-                    key={option}
-                    onClick={() => handleIdentifyChoice(option)}
-                    disabled={timeUp}
-                    className="px-3 py-2 bg-white border-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50 rounded font-semibold text-gray-800 text-sm transition"
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           <div className="text-center mb-8">
             <div
@@ -580,7 +478,7 @@ export const ChordsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (min
             </button>
           </div>
 
-          {card.type === 'play' && settings.showOnScreenKeyboard && (
+          {settings.showOnScreenKeyboard && (
             <div className="mt-6">
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-2 text-center">
                 On-screen keyboard

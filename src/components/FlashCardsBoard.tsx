@@ -10,12 +10,17 @@ interface FlashCard {
   prompt: string;
   targetNote: string;
   targetPitchClass: number;
+  // For multiple-choice questions (circle of fifths)
+  options?: string[];
+  answerLabel?: string;
+  keySigSvg?: { type: 'sharp' | 'flat' | 'none'; count: number };
 }
 
 interface FlashCardSettings {
   naturals: boolean;
   scaleMath: boolean;
   intervals: boolean;
+  circleOfFifths: boolean;
   showOnScreenKeyboard: boolean;
 }
 
@@ -23,6 +28,7 @@ const DEFAULT_SETTINGS: FlashCardSettings = {
   naturals: true,
   scaleMath: true,
   intervals: true,
+  circleOfFifths: true,
   showOnScreenKeyboard: false,
 };
 
@@ -61,6 +67,32 @@ const WEIGHTED_INTERVALS: Array<{ amount: number; weight: number }> = [
   { amount: 4, weight: 3 },
   { amount: 5, weight: 3 },
 ];
+
+// All major scales for circle-of-fifths questions
+const ALL_MAJOR_SCALES = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb'];
+
+// Major → relative minor mapping
+const MAJOR_TO_RELATIVE_MINOR: Record<string, string> = {
+  'C': 'Am', 'G': 'Em', 'D': 'Bm', 'A': 'F#m', 'E': 'C#m', 'B': 'G#m', 'F#': 'D#m', 'C#': 'A#m',
+  'F': 'Dm', 'Bb': 'Gm', 'Eb': 'Cm', 'Ab': 'Fm', 'Db': 'Bbm', 'Gb': 'Ebm', 'Cb': 'Abm',
+};
+
+const KEY_SIG_INFO: Record<string, { type: 'sharp' | 'flat' | 'none'; count: number }> = {
+  'C': { type: 'none', count: 0 },
+  'G': { type: 'sharp', count: 1 }, 'D': { type: 'sharp', count: 2 }, 'A': { type: 'sharp', count: 3 },
+  'E': { type: 'sharp', count: 4 }, 'B': { type: 'sharp', count: 5 }, 'F#': { type: 'sharp', count: 6 }, 'C#': { type: 'sharp', count: 7 },
+  'F': { type: 'flat', count: 1 }, 'Bb': { type: 'flat', count: 2 }, 'Eb': { type: 'flat', count: 3 },
+  'Ab': { type: 'flat', count: 4 }, 'Db': { type: 'flat', count: 5 }, 'Gb': { type: 'flat', count: 6 }, 'Cb': { type: 'flat', count: 7 },
+};
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 function weightedPick<T>(items: Array<T & { weight: number }>): T {
   const total = items.reduce((s, item) => s + item.weight, 0);
@@ -121,14 +153,48 @@ const getAllowedRoots = (settings: FlashCardSettings): string[] => {
 };
 
 const generateFlashCard = (settings: FlashCardSettings): FlashCard => {
-  const allowedQuestionTypes: Array<'scale' | 'interval'> = [];
+  const allowedQuestionTypes: Array<'scale' | 'interval' | 'circleOfFifths'> = [];
   if (settings.scaleMath) allowedQuestionTypes.push('scale');
   if (settings.intervals) allowedQuestionTypes.push('interval');
+  if (settings.circleOfFifths) allowedQuestionTypes.push('circleOfFifths');
 
   const questionTypes =
-    allowedQuestionTypes.length > 0 ? allowedQuestionTypes : (['scale', 'interval'] as const);
+    allowedQuestionTypes.length > 0 ? allowedQuestionTypes : (['scale', 'interval', 'circleOfFifths'] as const);
 
   const questionType = questionTypes[Math.floor(Math.random() * questionTypes.length)];
+
+  if (questionType === 'circleOfFifths') {
+    const subType = Math.random() < 0.5 ? 'relativeMinor' : 'keySigId';
+
+    if (subType === 'relativeMinor') {
+      const majorKey = ALL_MAJOR_SCALES[Math.floor(Math.random() * ALL_MAJOR_SCALES.length)];
+      const answer = MAJOR_TO_RELATIVE_MINOR[majorKey];
+      const allMinors = Object.values(MAJOR_TO_RELATIVE_MINOR);
+      const wrongOptions = shuffleArray(allMinors.filter(m => m !== answer)).slice(0, 5);
+      const options = shuffleArray([answer, ...wrongOptions]);
+      return {
+        prompt: `${majorKey} major has the same notes as?`,
+        targetNote: answer,
+        targetPitchClass: -1,
+        options,
+        answerLabel: answer,
+      };
+    } else {
+      // Key signature identification
+      const majorKey = ALL_MAJOR_SCALES[Math.floor(Math.random() * ALL_MAJOR_SCALES.length)];
+      const keySig = KEY_SIG_INFO[majorKey] ?? { type: 'none' as const, count: 0 };
+      const wrongKeys = shuffleArray(ALL_MAJOR_SCALES.filter(k => k !== majorKey)).slice(0, 5);
+      const options = shuffleArray([majorKey, ...wrongKeys]);
+      return {
+        prompt: 'What major scale has this key signature?',
+        targetNote: majorKey,
+        targetPitchClass: -1,
+        options,
+        answerLabel: majorKey,
+        keySigSvg: keySig,
+      };
+    }
+  }
 
   if (questionType === 'scale') {
     const scale = weightedPick(WEIGHTED_SCALES);
@@ -165,10 +231,83 @@ const generateFlashCard = (settings: FlashCardSettings): FlashCard => {
   };
 };
 
-export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void; midi: UseMidiReturn }> = ({
+// Treble clef staff positions for key signature accidentals
+const TREBLE_SHARP_POSITIONS = [8, 5, 9, 6, 3, 7, 4];
+const TREBLE_FLAT_POSITIONS = [4, 7, 3, 6, 2, 5, 1];
+
+const KeySignatureSvg: React.FC<{ type: 'sharp' | 'flat' | 'none'; count: number }> = ({ type, count }) => {
+  if (type === 'none' || count === 0) {
+    return <div className="text-lg text-gray-500 italic">No sharps or flats</div>;
+  }
+
+  const LINE_SPACING = 12;
+  const STAFF_TOP = 20;
+  const staffLines = [0, 1, 2, 3, 4].map(i => STAFF_TOP + i * LINE_SPACING);
+  const staffWidth = 40 + count * 14 + 20;
+  const staffHeight = STAFF_TOP + 4 * LINE_SPACING + 20;
+  const startX = 40;
+
+  const positions = type === 'sharp' ? TREBLE_SHARP_POSITIONS : TREBLE_FLAT_POSITIONS;
+
+  const renderSharp = (x: number, y: number, key: string) => {
+    const space = LINE_SPACING;
+    const halfW = space * 0.3;
+    const barGap = space * 0.35;
+    const tilt = space * 0.1;
+    const vTop = y - space;
+    const vBot = y + space;
+    return (
+      <g key={key}>
+        <line x1={x - halfW * 0.45} y1={vTop} x2={x - halfW * 0.45} y2={vBot} stroke="black" strokeWidth="1.2" />
+        <line x1={x + halfW * 0.45} y1={vTop} x2={x + halfW * 0.45} y2={vBot} stroke="black" strokeWidth="1.2" />
+        <line x1={x - halfW} y1={y - barGap + tilt} x2={x + halfW} y2={y - barGap - tilt} stroke="black" strokeWidth="2" />
+        <line x1={x - halfW} y1={y + barGap + tilt} x2={x + halfW} y2={y + barGap - tilt} stroke="black" strokeWidth="2" />
+      </g>
+    );
+  };
+
+  const renderFlat = (x: number, y: number, key: string) => {
+    const space = LINE_SPACING;
+    const bulgeWidth = space * 0.55;
+    return (
+      <g key={key}>
+        <line x1={x} y1={y - 2 * space} x2={x} y2={y} stroke="black" strokeWidth="1.5" />
+        <path
+          d={`M ${x},${y - space}
+              C ${x + bulgeWidth * 1.6},${y - space * 0.9}
+                ${x + bulgeWidth * 1.8},${y - space * 0.1}
+                ${x},${y}`}
+          fill="none"
+          stroke="black"
+          strokeWidth="1.5"
+        />
+      </g>
+    );
+  };
+
+  return (
+    <svg width={staffWidth} height={staffHeight} className="block">
+      {staffLines.map((lineY, i) => (
+        <line key={i} x1={10} y1={lineY} x2={staffWidth - 10} y2={lineY} stroke="black" strokeWidth="1" />
+      ))}
+      <text x={16} y={staffLines[3] + 5} fontSize="32" fontWeight="bold" fill="black" textAnchor="middle">𝄞</text>
+      {positions.slice(0, count).map((pos, i) => {
+        let y = STAFF_TOP + (4 - pos / 2) * LINE_SPACING;
+        if (type === 'flat') y += LINE_SPACING / 2;
+        const x = startX + i * 14;
+        return type === 'sharp'
+          ? renderSharp(x, y, `ks-${i}`)
+          : renderFlat(x, y, `ks-${i}`);
+      })}
+    </svg>
+  );
+};
+
+export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void; midi: UseMidiReturn; onSessionComplete?: (r: { section: string; correct_count: number; wrong_count: number; duration_seconds: number }) => void }> = ({
   timerMinutes,
   setTimerMinutes,
   midi,
+  onSessionComplete,
 }) => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<FlashCardSettings>(DEFAULT_SETTINGS);
@@ -197,9 +336,11 @@ export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: 
   }, [settings]);
 
   const handleAnswer = useCallback((playedPitchClass: number) => {
+    // Skip MIDI answers for multiple-choice questions
+    if (card.options) return;
+
     if (timeUp) {
-      if (showTimerDone) return; // block input during the 3s overlay window
-      // overlay dismissed: reset and start fresh
+      if (showTimerDone) return;
       resetSession();
       setHasStarted(true);
       return;
@@ -223,7 +364,32 @@ export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: 
       setWrongCount(prev => prev + 1);
       setFeedback(`Incorrect: you played ${playedLabel}. Try again.`);
     }
-  }, [timeUp, showTimerDone, hasStarted, card.targetNote, settings, resetSession]);
+  }, [timeUp, showTimerDone, hasStarted, card.targetNote, card.targetPitchClass, card.options, settings, resetSession]);
+
+  const handleOptionAnswer = useCallback((selected: string) => {
+    if (timeUp) {
+      if (showTimerDone) return;
+      resetSession();
+      setHasStarted(true);
+      return;
+    }
+
+    if (!hasStarted) {
+      setHasStarted(true);
+    }
+
+    if (selected === card.answerLabel) {
+      setCorrectCount(prev => prev + 1);
+      setFeedback(`Correct! ${card.answerLabel} is right.`);
+      setTimeout(() => {
+        setCard(generateFlashCard(settings));
+        setFeedback('');
+      }, 500);
+    } else {
+      setWrongCount(prev => prev + 1);
+      setFeedback(`Incorrect: ${selected}. The answer is ${card.answerLabel}.`);
+    }
+  }, [timeUp, showTimerDone, hasStarted, card.answerLabel, settings, resetSession]);
 
   const nextCard = useCallback(() => {
     if (timeUp) return;
@@ -252,6 +418,7 @@ export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: 
   useEffect(() => {
     if (!timeUp) return;
     setShowTimerDone(true);
+    onSessionComplete?.({ section: 'flash-cards', correct_count: correctCount, wrong_count: wrongCount, duration_seconds: elapsedSeconds });
   }, [timeUp]);
 
   const handleDismissTimerDone = useCallback(() => {
@@ -346,6 +513,16 @@ export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: 
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
+                checked={settings.circleOfFifths}
+                onChange={e => setSettings(prev => ({ ...prev, circleOfFifths: e.target.checked }))}
+                className="w-5 h-5 rounded"
+              />
+              <span className="text-sm font-medium text-gray-700">Circle of Fifths</span>
+            </label>
+
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
                 checked={settings.showOnScreenKeyboard}
                 onChange={e => setSettings(prev => ({ ...prev, showOnScreenKeyboard: e.target.checked }))}
                 className="w-5 h-5 rounded"
@@ -431,7 +608,27 @@ export const FlashCardsBoard: React.FC<{ timerMinutes: number; setTimerMinutes: 
             <div className="text-3xl font-bold text-gray-800">
               {card.prompt}
             </div>
+            {card.keySigSvg && (
+              <div className="mt-4 flex justify-center">
+                <KeySignatureSvg type={card.keySigSvg.type} count={card.keySigSvg.count} />
+              </div>
+            )}
           </div>
+
+          {card.options && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
+              {card.options.map(option => (
+                <button
+                  key={option}
+                  onClick={() => handleOptionAnswer(option)}
+                  disabled={timeUp}
+                  className="px-4 py-3 bg-white border-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50 rounded-lg font-semibold text-gray-800 transition"
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="text-center mb-8">
             <div
