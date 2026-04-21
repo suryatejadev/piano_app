@@ -46,10 +46,10 @@ const getRootCandidates = (): number[] => {
   return roots;
 };
 
-const getMaxInterval = (progressPct: number): number => {
-  if (progressPct < 0.25) return 2;
-  if (progressPct < 0.50) return 4;
-  if (progressPct < 0.75) return 7;
+const getMaxInterval = (elapsedSec: number): number => {
+  if (elapsedSec < 20) return 2;
+  if (elapsedSec < 50) return 4;
+  if (elapsedSec < 90) return 7;
   return 11;
 };
 
@@ -108,8 +108,7 @@ export const EarTrainingBoard: React.FC<{ timerMinutes: number; setTimerMinutes:
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const roundDurationSeconds = timerMinutes * 60;
-  const progressPct = roundDurationSeconds > 0 ? elapsedSeconds / roundDurationSeconds : 1;
-  const maxInterval = getMaxInterval(progressPct);
+  const maxInterval = getMaxInterval(elapsedSeconds);
 
   const totalCount = useMemo(() => correctCount + wrongCount, [correctCount, wrongCount]);
 
