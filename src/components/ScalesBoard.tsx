@@ -56,9 +56,9 @@ const INTERVALS: Record<string, number[]> = {
 const DEFAULT_SETTINGS: ScalesSettings = {
   modes: {
     twoHand1Oct: { enabled: true, scales: { major: true, minor: true }, notes: { naturals: true, accidentals: false } },
-    chordScales: { enabled: true, scales: { major: true, minor: true }, notes: { naturals: true, accidentals: false } },
-    chordInversions: { enabled: false, scales: { major: true, minor: false }, notes: { naturals: true, accidentals: false } },
-    pentatonic: { enabled: false, scales: { major: true, minor: true }, notes: { naturals: true, accidentals: false } },
+    chordScales: { enabled: true, scales: { major: true, minor: false }, notes: { naturals: true, accidentals: false } },
+    chordInversions: { enabled: true, scales: { major: true, minor: false }, notes: { naturals: true, accidentals: false } },
+    pentatonic: { enabled: true, scales: { major: true, minor: false }, notes: { naturals: true, accidentals: false } },
   },
 };
 
@@ -352,7 +352,12 @@ export const ScalesBoard: React.FC<{
         {/* Settings panel */}
         {showSettings && (
           <div className="mb-6 bg-white rounded-lg border border-gray-300 p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Configure Modes</h3>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Configure Modes</h3>
+            <div className="flex items-center gap-6 mb-4 text-xs text-gray-500 ml-6">
+              <span className="w-14"></span>
+              <span>Scales: <b>Major</b> / <b>Minor</b></span>
+              <span>Notes: <b>Naturals</b> / <b>Accidentals</b></span>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {MODE_META.map(({ id: modeId, label }) => {
                 const cfg = settings.modes[modeId];
@@ -414,26 +419,7 @@ export const ScalesBoard: React.FC<{
                 <div className="text-sm text-gray-500">Play the notes in order · Press C1 or click Skip to advance</div>
               </div>
 
-              {/* Note sequence */}
-              <div className="flex flex-wrap justify-center gap-1.5 mb-8">
-                {card.noteLabels.map((name, i) => {
-                  let bg = 'bg-gray-100 text-gray-400';
-                  if (noteStatuses[i] === 'correct') bg = 'bg-green-500 text-white';
-                  else if (noteStatuses[i] === 'wrong') bg = 'bg-red-500 text-white animate-pulse';
-                  else if (i === noteIndex) bg = 'bg-blue-600 text-white ring-2 ring-blue-300';
-
-                  return (
-                    <React.Fragment key={i}>
-                      {i === card.ascLen && (
-                        <div className="flex items-center px-1 text-gray-400 text-sm font-bold select-none">↓</div>
-                      )}
-                      <div className={`px-2.5 py-1 rounded text-xs font-mono font-semibold transition-all ${bg}`}>
-                        {name}
-                      </div>
-                    </React.Fragment>
-                  );
-                })}
-              </div>
+              {/* Note sequence - hidden, only progress bar shown */}
 
               {/* Progress bar */}
               <div className="w-full bg-gray-100 rounded-full h-2 mb-8">
