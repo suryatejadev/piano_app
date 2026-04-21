@@ -153,7 +153,7 @@ export const ScalesBoard: React.FC<{
   const [showSettings, setShowSettings] = useState(false);
   const [card, setCard] = useState<ScaleCard | null>(() => generateCard(DEFAULT_SETTINGS));
   const [noteIndex, setNoteIndex] = useState(0);
-  const [noteStatuses, setNoteStatuses] = useState<('pending' | 'correct' | 'wrong')[]>([]);
+  const [_noteStatuses, setNoteStatuses] = useState<('pending' | 'correct' | 'wrong')[]>([]);
   const [scalesCompleted, setScalesCompleted] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
