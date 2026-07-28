@@ -105,13 +105,17 @@ const Heatmap: React.FC<{ data: DayActivity[] }> = ({ data }) => {
 
 // --- Section Chart ---
 
-const SectionChart: React.FC<{ userId: string }> = ({ userId }) => {
+const SectionChart: React.FC<{ userId: string | null }> = ({ userId }) => {
   const [section, setSection] = useState(SECTIONS[0].value);
   const [range, setRange] = useState<'month' | 'all'>('month');
   const [data, setData] = useState<DailyStats[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!userId) {
+      setData([]);
+      return;
+    }
     setLoading(true);
     getSectionStats(userId, section, range).then(d => {
       setData(d);
@@ -176,11 +180,16 @@ const SectionChart: React.FC<{ userId: string }> = ({ userId }) => {
 
 // --- Stats Page ---
 
-export const StatsPage: React.FC<{ userId: string }> = ({ userId }) => {
+export const StatsPage: React.FC<{ userId: string | null }> = ({ userId }) => {
   const [heatmap, setHeatmap] = useState<DayActivity[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!userId);
 
   useEffect(() => {
+    if (!userId) {
+      setHeatmap([]);
+      setLoading(false);
+      return;
+    }
     getPracticeHeatmap(userId).then(d => {
       setHeatmap(d);
       setLoading(false);

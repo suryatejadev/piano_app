@@ -17,6 +17,7 @@ type Tab = 'sight-reading' | 'flash-cards' | 'chords' | 'ear-training' | 'scales
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('sight-reading');
   const [timerMinutes, setTimerMinutes] = useState(5);
+  const [isGuest, setIsGuest] = useState(false);
   const midi = useMidi();
   const auth = useAuth();
 
@@ -34,8 +35,8 @@ function App() {
     );
   }
 
-  if (!auth.user) {
-    return <AuthForm auth={auth} />;
+  if (!auth.user && !isGuest) {
+    return <AuthForm auth={auth} onGuestAccess={() => setIsGuest(true)} />;
   }
 
   return (
@@ -114,10 +115,10 @@ function App() {
                 Stats
               </button>
               <button
-                onClick={() => auth.signOut()}
+                onClick={() => (isGuest ? setIsGuest(false) : auth.signOut())}
                 className="ml-auto px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition"
               >
-                Sign Out
+                {isGuest ? 'Exit Guest Mode' : 'Sign Out'}
               </button>
           </div>
         </div>
@@ -129,7 +130,7 @@ function App() {
       {activeTab === 'ear-training' && <EarTrainingBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} onSessionComplete={onSessionComplete} />}
       {activeTab === 'scales' && <ScalesBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} midi={midi} onSessionComplete={onSessionComplete} />}
       {activeTab === 'rhythm' && <RhythmBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} onSessionComplete={onSessionComplete} />}
-      {activeTab === 'stats' && <StatsPage userId={auth.user.id} />}
+      {activeTab === 'stats' && <StatsPage userId={auth.user?.id ?? null} />}
     </div>
   );
 }

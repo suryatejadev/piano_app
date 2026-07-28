@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { UseAuthReturn } from '../hooks/useAuth';
 
-export const AuthForm: React.FC<{ auth: UseAuthReturn }> = ({ auth }) => {
+export const AuthForm: React.FC<{ auth: UseAuthReturn; onGuestAccess: () => void }> = ({ auth, onGuestAccess }) => {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -81,6 +81,13 @@ export const AuthForm: React.FC<{ auth: UseAuthReturn }> = ({ auth }) => {
             {submitting ? '...' : mode === 'signin' ? 'Sign In' : 'Sign Up'}
           </button>
         </form>
+
+        <button
+          onClick={onGuestAccess}
+          className="w-full mt-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded transition text-sm"
+        >
+          Guest Access (No login required)
+        </button>
       </div>
     </div>
   );
