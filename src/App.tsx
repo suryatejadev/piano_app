@@ -124,7 +124,7 @@ function App() {
         </div>
       </div>
 
-      {activeTab === 'sight-reading' && <GameBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} midi={midi} onSessionComplete={onSessionComplete} />}
+      {activeTab === 'sight-reading' && <GameBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} midi={midi} onSessionComplete={onSessionComplete} isGuest={isGuest} />}
       {activeTab === 'flash-cards' && <FlashCardsBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} midi={midi} onSessionComplete={onSessionComplete} />}
       {activeTab === 'chords' && <ChordsBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} midi={midi} onSessionComplete={onSessionComplete} />}
       {activeTab === 'ear-training' && <EarTrainingBoard timerMinutes={timerMinutes} setTimerMinutes={setTimerMinutes} onSessionComplete={onSessionComplete} />}

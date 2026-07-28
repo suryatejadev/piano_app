@@ -58,8 +58,14 @@ export interface UseGameStateReturn {
 /**
  * Hook to manage game state and logic
  */
-export const useGameState = (): UseGameStateReturn => {
-  const [state, setState] = useState<GameState>(DEFAULT_STATE);
+export const useGameState = (isGuest = false): UseGameStateReturn => {
+  const [state, setState] = useState<GameState>(() => ({
+    ...DEFAULT_STATE,
+    difficulty: {
+      ...DEFAULT_DIFFICULTY,
+      showOnScreenKeyboard: isGuest,
+    },
+  }));
   const [gameStartTime, setGameStartTime] = useState<number | null>(null);
 
   /**

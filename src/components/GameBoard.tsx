@@ -14,13 +14,14 @@ import type { UseMidiReturn } from '../hooks/useMidi';
 /**
  * Main game board component that orchestrates all game components
  */
-export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void; midi: UseMidiReturn; onSessionComplete?: (r: { section: string; correct_count: number; wrong_count: number; duration_seconds: number }) => void }> = ({
+export const GameBoard: React.FC<{ timerMinutes: number; setTimerMinutes: (mins: number) => void; midi: UseMidiReturn; onSessionComplete?: (r: { section: string; correct_count: number; wrong_count: number; duration_seconds: number }) => void; isGuest?: boolean }> = ({
   timerMinutes,
   setTimerMinutes,
   midi,
   onSessionComplete,
+  isGuest = false,
 }) => {
-  const gameState = useGameState();
+  const gameState = useGameState(isGuest);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showTimerDone, setShowTimerDone] = useState(false);
   const timerRefId = useRef<NodeJS.Timeout | null>(null);
